@@ -97,6 +97,11 @@ class Blockify(object):
         """Pulseaudio versions below 7.0 are localized."""
         localized = False
         try:
+            subprocess.check_call(["pulseaudio"])
+        except OSError:
+            log.info("Assuming system is using PipeWire")
+            return localized
+        try:
             pulseaudio_version_string = subprocess.check_output("pulseaudio --version | awk '{print $2}'", shell=True)
             pulseaudio_version = int(pulseaudio_version_string[0])
             localized = pulseaudio_version < 7
@@ -126,7 +131,7 @@ class Blockify(object):
         """Determine if we can use sinks or have to use alsa."""
         try:
             devnull = open(os.devnull)
-            subprocess.check_output(["pacmd", "list-sink-inputs"], stderr=devnull)
+            subprocess.check_output(["pactl", "list", "sink-inputs"], stderr=devnull)
             self.mutemethod = self.pulsesink_mute
             log.debug("Mute method is pulse sink.")
         except (OSError, subprocess.CalledProcessError):
@@ -425,14 +430,14 @@ class Blockify(object):
             except subprocess.CalledProcessError:
                 pass
 
-    def extract_pulse_sink_status(self, pacmd_out):
+    def extract_pulse_sink_status(self, pactl_out):
         sink_status = ("", "", "")  # index, playback_status, muted_value
         # Match muted_value and application.process.id values.
-        pattern = re.compile(r"(?: index|state|muted|application\.process\.id).*?(\w+)")
+        pattern = re.compile(r"(?: Sink Input #|Corked|Mute|application\.process\.id).*?(\w+)")
         # Put valid spotify PIDs in a list
-        output = pacmd_out.decode("utf-8")
+        output = pactl_out.decode("utf-8")
 
-        spotify_sink_list = [" index: " + i for i in output.split("index: ") if "spotify" in i]
+        spotify_sink_list = [" Sink Input #" + i for i in output.split("Sink Input #") if "spotify" in i]
 
         if len(spotify_sink_list) and self.spotify_pids:
             sink_infos = [pattern.findall(sink) for sink in spotify_sink_list]
@@ -449,27 +454,27 @@ class Blockify(object):
     def pulsesink_mute(self, mode):
         """Finds spotify's audio sink and toggles its mute state."""
         try:
-            pacmd_out = subprocess.check_output(["pacmd", "list-sink-inputs"])
+            pactl_out = subprocess.check_output(["pactl", "list", "sink-inputs"])
         except subprocess.CalledProcessError:
             log.error("Spotify sink not found. Is Pulse running? Resorting to pulse amixer as mute method.")
             self.mutemethod = self.pulse_mute  # Fall back to amixer mute.
             self.use_interlude_music = False
             return
 
-        index, playback_state, muted_value = self.extract_pulse_sink_status(pacmd_out)
-        self.song_status = "Playing" if playback_state == "RUNNING" else "Paused"
+        index, playback_state, muted_value = self.extract_pulse_sink_status(pactl_out)
+        self.song_status = "Playing" if playback_state == self.pulse_unmuted_value else "Paused"
         self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
 
         if index:
             if self.is_sink_muted and (mode == 2 or not self.current_song):
                 log.info("Forcing unmute.")
-                subprocess.call(["pacmd", "set-sink-input-mute", index, "0"])
+                subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
             elif not self.is_sink_muted and mode == 1:
                 log.info("Muting {}.".format(self.current_song))
-                subprocess.call(["pacmd", "set-sink-input-mute", index, "1"])
+                subprocess.call(["pactl", "set-sink-input-mute", index, "yes"])
             elif self.is_sink_muted and not mode:
                 log.info("Unmuting.")
-                subprocess.call(["pacmd", "set-sink-input-mute", index, "0"])
+                subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
 
     def prev(self):
         self.dbus.prev()
