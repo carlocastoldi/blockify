@@ -25,7 +25,7 @@ log = logging.getLogger("cli")
 
 from gi import require_version
 
-require_version('Gtk', '3.0')
+require_version('Gtk', '4.0')
 from gi.repository import Gtk
 from gi.repository import GObject, GLib
 
@@ -61,6 +61,7 @@ class Blockify(object):
         self.is_sink_muted = False
         self.dbus = self.initialize_dbus()
         self.channels = self.initialize_channels()
+        self.main_loop = GLib.MainLoop()
         # The gst library used by interludeplayer for some reason modifies
         # argv, overwriting some of docopts functionality in the process,
         # so we import gst here, where docopts cannot be broken anymore.
@@ -85,13 +86,15 @@ class Blockify(object):
 
         if not util.CONFIG["general"]["start_spotify"]:
             log.info("Exiting. Bye.")
-            Gtk.main_quit()
+            # Gtk.main_quit()
+            self.main_loop.quit()
 
         self.start_spotify()
         if not self.check_for_spotify_process():
             log.error("Failed to start Spotify!")
             log.info("Exiting. Bye.")
-            Gtk.main_quit()
+            # Gtk.main_quit()
+            self.main_loop.quit()
 
     def is_localized_pulseaudio(self):
         """Pulseaudio versions below 7.0 are localized."""
@@ -159,7 +162,8 @@ class Blockify(object):
         else:
             if pid.strip().decode("utf-8") != str(os.getpid()):
                 log.error("A blockify process is already running. Exiting.")
-                Gtk.main_quit()
+                # Gtk.main_quit()
+                self.main_loop.quit()
 
     def check_for_spotify_process(self):
         try:
@@ -199,7 +203,8 @@ class Blockify(object):
             return dbusclient.DBusClient()
         except Exception as e:
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
-            Gtk.main_quit()
+            # Gtk.main_quit()
+            self.main_loop.quit()
 
     def refresh_spotify_process_state(self):
         """Check if Spotify is running periodically. If it's not, suspend blockify."""
@@ -236,8 +241,10 @@ class Blockify(object):
             GLib.timeout_add(self.update_interval + 100, self.start_autoplay)
 
         log.info("Blockify started.")
+        print("CIAOOO!")
+        self.main_loop.run()
 
-        Gtk.main()
+        # Gtk.main()
 
     def start_autoplay(self):
         if self.autoplay:
@@ -561,7 +568,8 @@ class Blockify(object):
 
     def stop(self):
         self.prepare_stop()
-        Gtk.main_quit()
+        # Gtk.main_quit()
+        self.main_loop.quit()
         sys.exit()
 
     def toggle_block(self):

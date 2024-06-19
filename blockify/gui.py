@@ -32,6 +32,7 @@ from gi import require_version
 require_version('Gtk', '4.0')
 from gi.repository import Gtk
 from gi.repository import GdkPixbuf
+from gi.repository import GLib
 from gi.repository import GObject
 
 from blockify import cli
@@ -158,11 +159,13 @@ class Notepad(Gtk.Window):
         self.statusbar.push(0, "{}: Saved to {}.".format(now, self.location))
 
 
-class BlockifyUI(Gtk.Window):
+class BlockifyUI(Gtk.ApplicationWindow):
     """PyQT4 interface for blockify."""
 
     def __init__(self, blockify):
         super(BlockifyUI, self).__init__()
+
+        self.main_loop = GLib.MainLoop()
 
         # Initialize blockify.
         self.b = blockify
@@ -171,12 +174,12 @@ class BlockifyUI(Gtk.Window):
 
         # Images used for interlude media buttons.
         # Gtk.IconSize.BUTTON
-        self.play_img = Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY)
-        self.pause_img = Gtk.Image(stock=Gtk.STOCK_MEDIA_PAUSE)
-        self.next_img = Gtk.Image(stock=Gtk.STOCK_MEDIA_NEXT)
-        self.prev_img = Gtk.Image(stock=Gtk.STOCK_MEDIA_PREVIOUS)
-        self.open_img = Gtk.Image(stock=Gtk.STOCK_OPEN)
-        self.shuffle_img = Gtk.Image(stock=Gtk.STOCK_REFRESH)
+        self.play_img = Gtk.Image.new_from_icon_name("media-playback-start")
+        self.pause_img =  Gtk.Image.new_from_icon_name("media-playback-pause")
+        self.next_img =  Gtk.Image.new_from_icon_name("media-playback-next")
+        self.prev_img =  Gtk.Image.new_from_icon_name("media-playback-previous")
+        self.open_img =  Gtk.Image.new_from_icon_name("document-open")
+        self.shuffle_img =  Gtk.Image.new_from_icon_name("view-refresh")
 
         self.thumbnail_dir = util.THUMBNAIL_DIR
         self.cover_server = "https://i.scdn.co/image/"
@@ -200,7 +203,6 @@ class BlockifyUI(Gtk.Window):
 
         # Window setup.
         self.set_title("Blockify")
-        self.set_wmclass("blockify", "Blockify")
         self.set_default_size(195, 188)
         self.coverimage = Gtk.Image()
         self.create_labels()
@@ -212,15 +214,16 @@ class BlockifyUI(Gtk.Window):
         # "Trap" the exit.
         self.connect("destroy", self.stop)
 
-        self.show_all()
+        # self.show_all()
         if util.CONFIG["gui"]["start_minimized"]:
             self.hide()
         self.set_states()
 
-        self.play_interlude_button_active = self.pause_img == self.play_interlude_btn.get_image()
+        self.play_interlude_button_active = self.pause_img == self.play_interlude_btn.get_icon_name()
         log.info("Blockify-UI initialized.")
 
     def create_tray(self):
+        return
         basedir = os.path.dirname(os.path.realpath(__file__))
 
         self.blue_icon_file = os.path.join(basedir, "data/icon-blue-32.png")
@@ -278,31 +281,26 @@ class BlockifyUI(Gtk.Window):
 
     def create_interlude_player(self):
         interludelabel = "Disable" if self.b.use_interlude_music else "Enable"
-        self.toggle_interlude_btn = Gtk.Button(interludelabel + " InterludePlayer")
+        self.toggle_interlude_btn = Gtk.Button(label=interludelabel + " InterludePlayer")
         self.toggle_interlude_btn.connect("clicked", self.on_toggle_interlude_btn)
-        self.prev_interlude_btn = Gtk.Button()
-        self.prev_interlude_btn.set_image(self.prev_img)
+        self.prev_interlude_btn = Gtk.Button(icon_name=self.prev_img)
         self.prev_interlude_btn.connect("clicked", self.on_prev_interlude_btn)
-        self.play_interlude_btn = Gtk.Button()
-        self.play_interlude_btn.set_image(self.play_img)
+        self.play_interlude_btn = Gtk.Button(icon_name=self.play_img)
         self.play_interlude_btn.connect("clicked", self.on_play_interlude_btn)
-        self.next_interlude_btn = Gtk.Button()
-        self.next_interlude_btn.set_image(self.next_img)
+        self.next_interlude_btn = Gtk.Button(icon_name=self.next_img)
         self.next_interlude_btn.connect("clicked", self.on_next_interlude_btn)
-        self.open_playlist_btn = Gtk.Button()
-        self.open_playlist_btn.set_image(self.open_img)
+        self.open_playlist_btn = Gtk.Button(icon_name=self.open_img)
         self.open_playlist_btn.set_tooltip_text("Load playlist")
         self.open_playlist_btn.connect("clicked", self.on_open_playlist_btn)
-        self.shuffle_interludes_btn = Gtk.Button()
-        self.shuffle_interludes_btn.set_image(self.shuffle_img)
+        self.shuffle_interludes_btn = Gtk.Button(icon_name=self.shuffle_img)
         self.shuffle_interludes_btn.set_tooltip_text("Shuffle")
         self.shuffle_interludes_btn.connect("clicked", self.on_shuffle_interludes_btn)
 
         self.interlude_label = Gtk.Label()
         self.interlude_label.set_width_chars(26)
 
-        self.autoresume_chk = Gtk.CheckButton("Autoresume")
-        self.autoresume_chk.connect("clicked", self.on_autoresume)
+        self.autoresume_chk = Gtk.CheckButton(label="Autoresume")
+        self.autoresume_chk.connect("toggled", self.on_autoresume)
 
         self.interlude_slider = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 0.1)
         self.interlude_slider.set_sensitive(False)
@@ -312,85 +310,89 @@ class BlockifyUI(Gtk.Window):
         self.b.player.player.connect("audio-changed", self.on_interlude_audio_changed)
 
     def create_buttons(self):
-        self.toggle_play_btn = Gtk.Button("Play/Pause")
+        self.toggle_play_btn = Gtk.Button(label="Play/Pause")
         self.toggle_play_btn.connect("clicked", self.on_toggle_play_btn)
-        self.prev_btn = Gtk.Button("Previous")
+        self.prev_btn = Gtk.Button(label="Previous")
         self.prev_btn.connect("clicked", self.on_prev_btn)
-        self.next_btn = Gtk.Button("Next")
+        self.next_btn = Gtk.Button(label="Next")
         self.next_btn.connect("clicked", self.on_next_btn)
 
-        self.toggle_block_btn = Gtk.Button("Block")
+        self.toggle_block_btn = Gtk.Button(label="Block")
         self.toggle_block_btn.connect("clicked", self.on_toggle_block_btn)
-        self.autodetect_chk = Gtk.CheckButton("Autodetect")
-        self.autodetect_chk.connect("clicked", self.on_autodetect_chk)
+        self.autodetect_chk = Gtk.CheckButton(label="Autodetect")
+        self.autodetect_chk.connect("toggled", self.on_autodetect_chk)
 
-        self.toggle_mute_btn = Gtk.ToggleButton("Mute")
+        self.toggle_mute_btn = Gtk.ToggleButton(label="Mute")
         self.toggle_mute_btn.connect("clicked", self.on_toggle_mute_btn)
-        self.automute_chk = Gtk.CheckButton("Automute")
-        self.automute_chk.connect("clicked", self.on_automute_chk)
+        self.automute_chk = Gtk.CheckButton(label="Automute")
+        self.automute_chk.connect("toggled", self.on_automute_chk)
 
-        self.toggle_cover_btn = Gtk.Button("Toggle Cover")
+        self.toggle_cover_btn = Gtk.Button(label="Toggle Cover")
         self.toggle_cover_btn.connect("clicked", self.on_toggle_cover_btn)
-        self.autohide_cover_chk = Gtk.CheckButton("Autohide")
-        self.autohide_cover_chk.connect("clicked", self.on_autohidecover_chk)
+        self.autohide_cover_chk = Gtk.CheckButton(label="Autohide")
+        self.autohide_cover_chk.connect("toggled", self.on_autohidecover_chk)
 
-        self.toggle_list_btn = Gtk.ToggleButton("Open List")
+        self.toggle_list_btn = Gtk.ToggleButton(label="Open List")
         self.toggle_list_btn.connect("clicked", self.on_toggle_list)
 
-        self.exit_btn = Gtk.Button("Exit")
+        self.exit_btn = Gtk.Button(label="Exit")
         self.exit_btn.connect("clicked", self.on_exit_btn)
 
         self.toggle_mute_btn.set_sensitive(False)
 
     def create_layout(self):
-        main_window = Gtk.VBox()
+        main_window = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        main_window.add(self.coverimage)
-        main_window.add(self.artistlabel)
-        main_window.add(self.titlelabel)
-        main_window.add(self.albumlabel)
-        main_window.add(self.statuslabel)
-        main_window.add(self.toggle_play_btn)
+        main_window.append(self.coverimage)
+        main_window.append(self.artistlabel)
+        main_window.append(self.titlelabel)
+        main_window.append(self.albumlabel)
+        main_window.append(self.statuslabel)
+        main_window.append(self.toggle_play_btn)
 
-        control_buttons = Gtk.HBox(True)
-        control_buttons.add(self.prev_btn)
-        control_buttons.add(self.next_btn)
-        main_window.pack_start(control_buttons, True, True, 0)
+        control_buttons = Gtk.Box(homogeneous=True)
+        control_buttons.append(self.prev_btn)
+        control_buttons.append(self.next_btn)
+        # main_window.pack_start(control_buttons, True, True, 0)
+        main_window.prepend(control_buttons)
 
-        block_buttons = Gtk.HBox(True)
-        block_buttons.add(self.toggle_block_btn)
-        block_buttons.add(self.autodetect_chk)
-        main_window.pack_start(block_buttons, True, True, 0)
+        block_buttons = Gtk.Box(homogeneous=True)
+        block_buttons.append(self.toggle_block_btn)
+        block_buttons.append(self.autodetect_chk)
+        # main_window.pack_start(block_buttons, True, True, 0)
+        main_window.prepend(block_buttons)
 
-        mute_buttons = Gtk.HBox(True)
-        mute_buttons.add(self.toggle_mute_btn)
-        mute_buttons.add(self.automute_chk)
-        main_window.pack_start(mute_buttons, True, True, 0)
+        mute_buttons = Gtk.Box(homogeneous=True)
+        mute_buttons.append(self.toggle_mute_btn)
+        mute_buttons.append(self.automute_chk)
+        # main_window.pack_start(mute_buttons, True, True, 0)
+        main_window.prepend(mute_buttons)
 
-        cover_buttons = Gtk.HBox(True)
-        cover_buttons.add(self.toggle_cover_btn)
-        cover_buttons.add(self.autohide_cover_chk)
-        main_window.pack_start(cover_buttons, True, True, 0)
+        cover_buttons = Gtk.Box(homogeneous=True)
+        cover_buttons.append(self.toggle_cover_btn)
+        cover_buttons.append(self.autohide_cover_chk)
+        # main_window.pack_start(cover_buttons, True, True, 0)
+        main_window.prepend(cover_buttons)
 
-        main_window.add(self.toggle_list_btn)
-        main_window.add(self.exit_btn)
-        main_window.add(self.toggle_interlude_btn)
+        main_window.append(self.toggle_list_btn)
+        main_window.append(self.exit_btn)
+        main_window.append(self.toggle_interlude_btn)
 
-        interlude_buttons = Gtk.HBox(False)
-        interlude_buttons.add(self.prev_interlude_btn)
-        interlude_buttons.add(self.play_interlude_btn)
-        interlude_buttons.add(self.next_interlude_btn)
-        interlude_buttons.add(self.open_playlist_btn)
-        interlude_buttons.add(self.shuffle_interludes_btn)
-        interlude_buttons.add(self.autoresume_chk)
+        interlude_buttons = Gtk.Box(homogeneous=False)
+        interlude_buttons.append(self.prev_interlude_btn)
+        interlude_buttons.append(self.play_interlude_btn)
+        interlude_buttons.append(self.next_interlude_btn)
+        interlude_buttons.append(self.open_playlist_btn)
+        interlude_buttons.append(self.shuffle_interludes_btn)
+        interlude_buttons.append(self.autoresume_chk)
 
-        self.interlude_box = Gtk.VBox()
-        self.interlude_box.add(self.interlude_label)
-        self.interlude_box.add(self.interlude_slider)
-        self.interlude_box.add(interlude_buttons)
-        main_window.add(self.interlude_box)
+        self.interlude_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.interlude_box.append(self.interlude_label)
+        self.interlude_box.append(self.interlude_slider)
+        self.interlude_box.append(interlude_buttons)
+        main_window.append(self.interlude_box)
 
-        self.add(main_window)
+        self.set_child(main_window)
 
     def set_states(self):
         checkboxes = [self.autodetect_chk, self.automute_chk, self.autohide_cover_chk, self.autoresume_chk]
@@ -410,17 +412,19 @@ class BlockifyUI(Gtk.Window):
         self.b.toggle_mute(2)
         self.bind_signals()
         self.start_main_loops()
+        self.start()
 
-        Gtk.main()
+        self.main_loop.run()
+        # Gtk.main()
 
     def start_main_loops(self):
-        GObject.timeout_add(self.b.spotify_refresh_interval, self.b.refresh_spotify_process_state)
+        GLib.timeout_add(self.b.spotify_refresh_interval, self.b.refresh_spotify_process_state)
         # Start and loop the main update routine once every X ms.
         # To influence responsiveness or CPU usage, decrease/increase self.update_interval.
-        GObject.timeout_add(self.update_interval, self.update)
+        GLib.timeout_add(self.update_interval, self.update)
         if self.b.autoplay:
             # Delay autoplayback until self.spotify_is_playing was called at least once.
-            GObject.timeout_add(self.update_interval + 100, self.b.start_autoplay)
+            GLib.timeout_add(self.update_interval + 100, self.b.start_autoplay)
 
         log.info("Blockify-UI started.")
 
@@ -430,7 +434,8 @@ class BlockifyUI(Gtk.Window):
         """Cleanly shut down, unmuting sound and saving the blocklist."""
         self.b.prepare_stop()
         log.debug("Exiting GUI.")
-        Gtk.main_quit()
+        self.main_loop.quit()
+        # Gtk.main_quit()
         sys.exit()
 
     def signal_stop_received(self, sig, hdl):
@@ -539,7 +544,7 @@ class BlockifyUI(Gtk.Window):
             elif not interlude_is_playing and state:
                 icon = self.play_img
             if icon:
-                self.play_interlude_btn.set_image(icon)
+                self.play_interlude_btn.set_icon_name(icon)
                 self.play_interlude_button_active = not state
 
     def update_autoresume_check(self):
@@ -708,9 +713,9 @@ class BlockifyUI(Gtk.Window):
 
         return status
 
-    def restore_size(self):
-        width, height = self.get_default_size()
-        self.resize(width, height)
+    # def restore_size(self):
+    #     width, height = self.get_default_size()
+    #     self.resize(width, height)
 
     def enable_cover(self):
         if not self.coverimage.get_visible():
@@ -719,21 +724,21 @@ class BlockifyUI(Gtk.Window):
     def disable_cover(self):
         if self.coverimage.get_visible():
             self.coverimage.hide()
-            self.restore_size()
+            # self.restore_size()
 
     def disable_interlude_box(self):
         self.b.use_interlude_music = False
-        self.interlude_box.hide()
+        # self.interlude_box.hide()
         self.b.player.pause()
         self.b.dbus.play()
         self.toggle_interlude_btn.set_label("Enable player")
-        self.restore_size()
+        # self.restore_size()
 
     def enable_interlude_box(self):
         self.b.use_interlude_music = True
         self.interlude_box.show()
         self.toggle_interlude_btn.set_label("Disable player")
-        self.restore_size()
+        # self.restore_size()
 
     def toggle_interlude(self):
         if not self.b.player.is_playing():
