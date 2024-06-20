@@ -48,61 +48,69 @@ class Notepad(Gtk.Window):
         self.location = util.BLOCKLIST_FILE
 
         self.set_title("Blocklist")
-        self.set_wmclass("blocklist", "Blockify")
+        # self.set_wmclass("blocklist", "Blockify")
         self.set_default_size(300, 400)
-        self.set_position(Gtk.WindowPosition.CENTER)
+        # self.set_position(Gtk.WindowPosition.CENTER)
 
         self.textview = Gtk.TextView()
         self.statusbar = Gtk.Statusbar()
         self.statusbar.push(0, "Ctrl+S (save), Ctrl+Q (close), Ctrl+D (del-line)")
+        self.shortcut_controller = Gtk.ShortcutController()
+        self.add_controller(self.shortcut_controller)
 
         self.create_keybinds()
         self.create_layout()
 
         self.open_file()
-        self.show_all()
+        # self.show_all()
+        self.present()
 
     def create_layout(self):
-        vbox = Gtk.VBox()
-        textbox = Gtk.VBox()
-        statusbox = Gtk.VBox()
-        vbox.pack_start(textbox, True, True, 0)
-        vbox.pack_start(statusbox, False, False, 0)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        textbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        statusbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # vbox.pack_start(textbox, True, True, 0)
+        # vbox.pack_start(statusbox, False, False, 0)
+        vbox.append(textbox)
+        vbox.append(statusbox)
 
         # Put the textview into a ScrolledWindow.
         self.sw = Gtk.ScrolledWindow()
         self.sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        self.sw.add(self.textview)
-        textbox.pack_start(self.sw, True, True, 0)
-        statusbox.pack_start(self.statusbar, True, False, 0)
+        # self.sw.add(self.textview)
+        self.sw.set_child(self.textview)
+        textbox.append(self.sw)
+        statusbox.append(self.statusbar)
+        # textbox.pack_start(self.sw, True, True, 0)
+        # statusbox.pack_start(self.statusbar, True, False, 0)
 
-        self.add(vbox)
-
-    def split_accelerator(self, accelerator):
-        key, mod = Gtk.accelerator_parse(accelerator)
-        return key, mod
+        # self.add(vbox)
+        self.set_child(vbox)
 
     def create_keybinds(self):
         """Register Ctrl+Q/W to quit and Ctrl+S to save the blocklist."""
-        q_key, q_mod = self.split_accelerator("<Control>q")
-        w_key, w_mod = self.split_accelerator("<Control>w")
-        s_key, s_mod = self.split_accelerator("<Control>s")
-        d_key, d_mod = self.split_accelerator("<Control>d")
-        a_key, a_mod = self.split_accelerator("<Control>a")
+        ctrl_q_key = Gtk.ShortcutTrigger.parse_string("<Control>q")
+        ctrl_w_key = Gtk.ShortcutTrigger.parse_string("<Control>w")
+        ctrl_s_key = Gtk.ShortcutTrigger.parse_string("<Control>s")
+        ctrl_d_key = Gtk.ShortcutTrigger.parse_string("<Control>d")
+        ctrl_a_key = Gtk.ShortcutTrigger.parse_string("<Control>a")
 
-        quit_group = Gtk.AccelGroup()
-        quit_group.connect(q_key, q_mod, Gtk.AccelFlags.LOCKED, self.destroy)
-        quit_group.connect(w_key, w_mod, Gtk.AccelFlags.LOCKED, self.destroy)
-        self.add_accel_group(quit_group)
+        # CLOSE
+        close_callback = Gtk.CallbackAction.new(callback=self.destroy, data=None)
+        self.shortcut_controller.add_shortcut(Gtk.Shortcut(trigger=ctrl_q_key, action=close_callback))
+        self.shortcut_controller.add_shortcut(Gtk.Shortcut(trigger=ctrl_w_key, action=close_callback))
 
-        save_group = Gtk.AccelGroup()
-        save_group.connect(s_key, s_mod, Gtk.AccelFlags.LOCKED, self.save)
-        self.add_accel_group(save_group)
+        # SAVE
+        close_callback = Gtk.CallbackAction.new(callback=self.save, data=None)
+        self.shortcut_controller.add_shortcut(Gtk.Shortcut(trigger=ctrl_s_key, action=close_callback))
 
-        edit_group = Gtk.AccelGroup()
-        edit_group.connect(d_key, d_mod, Gtk.AccelFlags.LOCKED, self.delete_line)
-        edit_group.connect(a_key, a_mod, Gtk.AccelFlags.LOCKED, self.select_all)
-        self.add_accel_group(edit_group)
+        # DELETE LINE
+        close_callback = Gtk.CallbackAction.new(callback=self.delete_line, data=None)
+        self.shortcut_controller.add_shortcut(Gtk.Shortcut(trigger=ctrl_d_key, action=close_callback))
+
+        # SELECT ALL
+        close_callback = Gtk.CallbackAction.new(callback=self.select_all, data=None)
+        self.shortcut_controller.add_shortcut(Gtk.Shortcut(trigger=ctrl_a_key, action=close_callback))
 
     def undo(self, *args):
         """Ctrl+Z, undo the last text change."""
@@ -162,8 +170,9 @@ class Notepad(Gtk.Window):
 class BlockifyUI(Gtk.ApplicationWindow):
     """PyQT4 interface for blockify."""
 
-    def __init__(self, blockify):
-        super(BlockifyUI, self).__init__()
+    def __init__(self, blockify: cli.Blockify, *args, **kwargs):
+
+        super(BlockifyUI, self).__init__(*args, **kwargs)
 
         self.main_loop = GLib.MainLoop()
 
@@ -174,12 +183,18 @@ class BlockifyUI(Gtk.ApplicationWindow):
 
         # Images used for interlude media buttons.
         # Gtk.IconSize.BUTTON
-        self.play_img = Gtk.Image.new_from_icon_name("media-playback-start")
-        self.pause_img =  Gtk.Image.new_from_icon_name("media-playback-pause")
-        self.next_img =  Gtk.Image.new_from_icon_name("media-playback-next")
-        self.prev_img =  Gtk.Image.new_from_icon_name("media-playback-previous")
-        self.open_img =  Gtk.Image.new_from_icon_name("document-open")
-        self.shuffle_img =  Gtk.Image.new_from_icon_name("view-refresh")
+        # self.play_img = Gtk.Image.new_from_icon_name("media-playback-start")
+        # self.pause_img =  Gtk.Image.new_from_icon_name("media-playback-pause")
+        # self.next_img =  Gtk.Image.new_from_icon_name("media-playback-next")
+        # self.prev_img =  Gtk.Image.new_from_icon_name("media-playback-previous")
+        # self.open_img =  Gtk.Image.new_from_icon_name("document-open")
+        # self.shuffle_img =  Gtk.Image.new_from_icon_name("view-refresh")
+        self.play_img = "media-playback-start"
+        self.pause_img = "media-playback-pause"
+        self.next_img = "media-skip-forward"
+        self.prev_img = "media-skip-backward"
+        self.open_img = "document-open"
+        self.shuffle_img = "media-playlist-shuffle"
 
         self.thumbnail_dir = util.THUMBNAIL_DIR
         self.cover_server = "https://i.scdn.co/image/"
@@ -265,7 +280,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
         self.menu.append(exit_menuitem)
         exit_menuitem.connect("activate", self.on_exit_btn)
 
-        self.menu.show_all()
+        # self.menu.show_all()
 
         self.menu.popup(None, None, None, self.status_icon, event_button, event_time)
 
@@ -354,25 +369,25 @@ class BlockifyUI(Gtk.ApplicationWindow):
         control_buttons.append(self.prev_btn)
         control_buttons.append(self.next_btn)
         # main_window.pack_start(control_buttons, True, True, 0)
-        main_window.prepend(control_buttons)
+        main_window.append(control_buttons)
 
         block_buttons = Gtk.Box(homogeneous=True)
         block_buttons.append(self.toggle_block_btn)
         block_buttons.append(self.autodetect_chk)
         # main_window.pack_start(block_buttons, True, True, 0)
-        main_window.prepend(block_buttons)
+        main_window.append(block_buttons)
 
         mute_buttons = Gtk.Box(homogeneous=True)
         mute_buttons.append(self.toggle_mute_btn)
         mute_buttons.append(self.automute_chk)
         # main_window.pack_start(mute_buttons, True, True, 0)
-        main_window.prepend(mute_buttons)
+        main_window.append(mute_buttons)
 
         cover_buttons = Gtk.Box(homogeneous=True)
         cover_buttons.append(self.toggle_cover_btn)
         cover_buttons.append(self.autohide_cover_chk)
         # main_window.pack_start(cover_buttons, True, True, 0)
-        main_window.prepend(cover_buttons)
+        main_window.append(cover_buttons)
 
         main_window.append(self.toggle_list_btn)
         main_window.append(self.exit_btn)
@@ -409,10 +424,9 @@ class BlockifyUI(Gtk.ApplicationWindow):
 
     def start(self):
         """Start the main update routine."""
-        self.b.toggle_mute(2)
+        self.b.toggle_mute(cli.MuteDetection.FORCE_UNMUTE)
         self.bind_signals()
         self.start_main_loops()
-        self.start()
 
         self.main_loop.run()
         # Gtk.main()
@@ -515,7 +529,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
             self.b.adjust_interlude()
 
             self.update_labels()
-            self.update_icons()
+            # self.update_icons()
             self.update_buttons()
             if not self.previous_cover_file or (self.b.current_song != self.b.previous_song):
                 # Cover art is not a priority, so let gtk decide when exactly we handle them.
@@ -625,8 +639,8 @@ class BlockifyUI(Gtk.ApplicationWindow):
         self.albumlabel.set_text(album)
         self.statuslabel.set_text(status)
 
-        self.status_icon.set_tooltip_text("{0} - {1}\n{2}\n{3}\nblockify v{4}".format(artist, title, album, status,
-                                                                                      util.VERSION))
+        # self.status_icon.set_tooltip_text("{0} - {1}\n{2}\n{3}\nblockify v{4}".format(artist, title, album, status,
+        #                                                                               util.VERSION))
 
     def update_icons(self):
         if self.b.found and not self.statusicon_found:
@@ -916,22 +930,23 @@ class BlockifyUI(Gtk.ApplicationWindow):
     def on_toggle_mute_btn(self, widget):
         if widget.get_active():
             widget.set_label("Unmute")
-            self.b.toggle_mute(1)
+            self.b.toggle_mute(cli.MuteDetection.FORCE_MUTE)
         else:
             widget.set_label("Mute")
-            self.b.toggle_mute(2)
+            self.b.toggle_mute(cli.MuteDetection.FORCE_UNMUTE)
 
     def on_automute_chk(self, widget):
         if widget.get_active():
             self.toggle_mute_btn.set_sensitive(False)
             self.toggle_block_btn.set_sensitive(True)
             self.b.automute = True
+            self.b.toggle_mute(cli.MuteDetection.AUTOMATIC)
             log.debug("Enabled automute.")
         else:
             self.b.automute = False
             self.toggle_mute_btn.set_sensitive(True)
             self.toggle_block_btn.set_sensitive(False)
-            self.b.toggle_mute(2)
+            self.b.toggle_mute(cli.MuteDetection.FORCE_UNMUTE)
             log.debug("Disabled automute.")
         # Correct toggle button state ...
         if self.b.is_sink_muted or self.b.is_fully_muted:
@@ -971,8 +986,17 @@ class BlockifyUI(Gtk.ApplicationWindow):
 def main():
     """Entry point for the GUI-version of Blockify."""
     _cli = cli.initialize(__doc__)
-    gui = BlockifyUI(_cli)
-    gui.start()
+
+    def on_activate(app):
+        win = BlockifyUI(_cli, application=app) #Gtk.ApplicationWindow(application=app)
+        win.present()
+
+    gui = Gtk.Application()
+    gui.connect("activate", on_activate)
+    gui.run(None)
+
+    # gui = BlockifyUI(_cli)
+    # gui.start()
 
 
 if __name__ == "__main__":
