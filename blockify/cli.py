@@ -23,6 +23,7 @@ from blockify import util
 
 log = logging.getLogger("cli")
 
+from enum import Enum
 from gi import require_version
 
 require_version('Gtk', '4.0')
@@ -33,6 +34,11 @@ from blockify import blocklist
 from blockify import dbusclient
 from blockify import interludeplayer
 
+
+class MuteDetection(Enum):
+    AUTOMATIC = 0
+    FORCE_MUTE = 1
+    FORCE_UNMUTE = 2
 
 class Blockify(object):
     def __init__(self, blocklist):
@@ -62,6 +68,7 @@ class Blockify(object):
         self.dbus = self.initialize_dbus()
         self.channels = self.initialize_channels()
         self.main_loop = GLib.MainLoop()
+        # main_context = GLib.MainContext()
         # The gst library used by interludeplayer for some reason modifies
         # argv, overwriting some of docopts functionality in the process,
         # so we import gst here, where docopts cannot be broken anymore.
@@ -232,16 +239,16 @@ class Blockify(object):
         self.bind_signals()
         # Force unmute to properly initialize unmuted state
 
-        self.toggle_mute(2)
+        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
 
         GLib.timeout_add(self.spotify_refresh_interval, self.refresh_spotify_process_state)
+
         GLib.timeout_add(self.update_interval, self.update)
         if self.autoplay:
             # Delay autoplayback until self.spotify_is_playing was called at least once.
             GLib.timeout_add(self.update_interval + 100, self.start_autoplay)
 
         log.info("Blockify started.")
-        print("CIAOOO!")
         self.main_loop.run()
 
         # Gtk.main()
@@ -294,6 +301,7 @@ class Blockify(object):
         if not self.automute:
             return False
 
+        # if True:
         if self.autodetect and self.current_song and self.current_song_is_ad():
             if self.use_interlude_music and not self.player.temp_disable:
                 self.player.temp_disable = True
@@ -324,11 +332,11 @@ class Blockify(object):
 
     def ad_found(self):
         # log.debug("Ad found: {0}".format(self.current_song))
-        self.toggle_mute(1)
+        self.toggle_mute(MuteDetection.FORCE_MUTE)
 
     def unmute_with_delay(self):
         if not self.found:
-            self.toggle_mute()
+            self.toggle_mute(MuteDetection.AUTOMATIC)
         return False
 
     # Audio ads typically have no artist information (via DBus) and/or "/ad/" in their spotify url.
@@ -384,8 +392,7 @@ class Blockify(object):
             else:
                 log.error("Not found in blocklist or block pattern too short.")
 
-    def toggle_mute(self, mode=0):
-        # 0 = automatic, 1 = force mute, 2 = force unmute
+    def toggle_mute(self, mode=MuteDetection.AUTOMATIC):
         self.mutemethod(mode)
 
     def is_muted(self):
@@ -404,12 +411,12 @@ class Blockify(object):
 
         state = None
 
-        if muted and (mode == 2 or not self.current_song):
+        if muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
             state = "unmute"
-        elif muted and mode == 0:
+        elif muted and mode == MuteDetection.AUTOMATIC:
             state = "unmute"
             log.info("Unmuting.")
-        elif not muted and mode == 1:
+        elif not muted and mode == MuteDetection.FORCE_MUTE:
             state = "mute"
             log.info("Muting {}.".format(self.current_song))
 
@@ -474,13 +481,13 @@ class Blockify(object):
         self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
 
         if index:
-            if self.is_sink_muted and (mode == 2 or not self.current_song):
+            if self.is_sink_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
                 log.info("Forcing unmute.")
                 subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
-            elif not self.is_sink_muted and mode == 1:
+            elif not self.is_sink_muted and mode == MuteDetection.FORCE_MUTE:
                 log.info("Muting {}.".format(self.current_song))
                 subprocess.call(["pactl", "set-sink-input-mute", index, "yes"])
-            elif self.is_sink_muted and not mode:
+            elif self.is_sink_muted and mode == MuteDetection.AUTOMATIC:
                 log.info("Unmuting.")
                 subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
 
@@ -564,7 +571,7 @@ class Blockify(object):
         if self.blocklist != self.orglist:
             self.blocklist.save()
         # Unmute before exiting.
-        self.toggle_mute(2)
+        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
 
     def stop(self):
         self.prepare_stop()
