@@ -52,7 +52,6 @@ class Blockify(object):
         self.pulse_unmuted_value = ""
         self.song_delimiter = " - "  # u" \u2013 "
         self.found = False
-        self.current_song_from_window_title = ""
         self.current_song = ""
         self.current_song_artist = ""
         self.current_song_title = ""
@@ -189,20 +188,6 @@ class Blockify(object):
         self.found = self.find_ad(metadata)
         self.adjust_interlude()
 
-    def find_spotify_window(self):
-        spotify_window = None
-        try:
-            pipe = subprocess.Popen(['wmctrl', '-lx'], stdout=subprocess.PIPE).stdout
-            window_list = pipe.read().decode("utf-8").split("\n")
-            for window in window_list:
-                if "spotify.Spotify" in window:
-                    return window
-        except OSError:
-            log.error("Please install wmctrl first! Exiting.")
-            self.stop()
-
-        return spotify_window
-
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
         self.previous_song = self.current_song
@@ -251,43 +236,21 @@ class Blockify(object):
         return False
 
     # Audio ads typically have no artist information (via DBus) and/or "/ad/" in their spotify url.
-    # Video ads have no DBus information whatsoever so they are determined via window title (wmctrl).
     def current_song_is_ad(self):
 
         missing_artist = self.current_song_title and not self.current_song_artist
         has_ad_url = "/ad/" in self.spotify.get_spotify_url()
         has_podcast_url = "/episode/" in self.spotify.get_spotify_url()
 
-        # Since there is no reliable way to determine playback status of Spotify when not using pulseaudio,
-        # we return here with a trimmed version of ad detection. At the very least, this won't mute video ads.
-        if self.mutemethod != self.pulsesink_mute or not util.CONFIG["general"]["use_window_title"]:
-            return (missing_artist and not has_podcast_url) or has_ad_url
-
-        title_mismatch = self.spotify_is_playing() and self.current_song != self.current_song_from_window_title
-
         # log.debug("missing_artist: {0}, has_ad_url: {1}, title_mismatch: {2}".format(missing_artist, has_ad_url,
         #                                                                             title_mismatch))
 
-        return (missing_artist and not has_podcast_url) or has_ad_url or title_mismatch
+        return (missing_artist and not has_podcast_url) or has_ad_url
 
     def update_current_song_info(self, metadata=None):
         self.current_song_artist = self.spotify.get_song_artist(metadata)
         self.current_song_title = self.spotify.get_song_title(metadata)
         self.current_song = self.current_song_artist + self.song_delimiter + self.current_song_title
-        if util.CONFIG["general"]["use_window_title"]:
-            self.current_song_from_window_title = self.get_current_song_from_window_title()
-
-    def get_current_song_from_window_title(self):
-        """Checks if a Spotify window exists and returns the current songname."""
-        song = ""
-        spotify_window = self.find_spotify_window()
-        if spotify_window:
-            try:
-                song = " ".join(spotify_window.split()[4:])
-            except Exception as e:
-                log.debug("Could not extract song info from Spotify window title: {0}".format(e), exc_info=1)
-
-        return song
 
     def block_current(self):
         if self.current_song:
