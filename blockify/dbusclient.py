@@ -18,6 +18,8 @@ import re
 import sys
 
 import dbus
+import dbus.types
+from dbus.mainloop.glib import DBusGMainLoop
 
 from blockify import util
 
@@ -37,7 +39,7 @@ class DBusClient(object):
 
     def connect_to_spotify_dbus(self, bus):
         if not bus:
-            bus = dbus.SessionBus()
+            bus = dbus.SessionBus(mainloop=DBusGMainLoop())
         self.session_bus = bus
 
         for name in bus.list_names():
@@ -51,6 +53,36 @@ class DBusClient(object):
             self.player = dbus.Interface(self.proxy, self.player_path)
         except Exception as e:
             log.error("Could not connect to Spotify dbus session: {}".format(e))
+
+    def on_property_change(self, fun):
+        self.session_bus.add_signal_receiver(
+            handler_function=fun,
+            signal_name="PropertiesChanged",
+            dbus_interface="org.freedesktop.DBus.Properties",
+            bus_name=self.spotify_path,
+            path="/org/mpris/MediaPlayer2"
+        )
+
+    def on_metadata_change(self, fun):
+        def _playback_status_changed(
+            interface_name: str,
+            changed_properties: dict[str, str],
+            invalidated_properties: list[str]
+        ):
+            if (
+                interface_name != self.player_path
+                or ("Metadata" not in changed_properties and "PlaybackStatus" not in changed_properties)
+            ):
+                return
+            if "PlaybackStatus" in changed_properties:
+                if "Playing" == str(changed_properties["PlaybackStatus"]):
+                    metadata = self.get_property("Metadata")
+                else:
+                    return
+            else:
+                metadata: dbus.types.Dictionary = changed_properties["Metadata"]
+            fun(metadata)
+        self.on_property_change(_playback_status_changed)
 
     def get_property(self, key):
         """Gets the value from any available property."""
@@ -132,33 +164,36 @@ class DBusClient(object):
         except Exception as e:
             log.warn("Cannot Seek: {}".format(e))
 
-    def get_song_length(self):
+    def get_song_length(self, metadata=None):
         """Gets the length of current song from metadata (in seconds)."""
         length = 0
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             length = int(metadata["mpris:length"] / 1000000)
         except Exception as e:
             log.warn("Cannot get song length: {}".format(e))
 
         return length
 
-    def get_art_url(self):
+    def get_art_url(self, metadata=None):
         """Get album cover"""
         art_url = ""
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             art_url = str(metadata["mpris:artUrl"])
         except Exception as e:
             log.error("Cannot fetch album cover url: {}".format(e))
 
         return art_url
 
-    def get_spotify_url(self):
+    def get_spotify_url(self, metadata=None):
         """Get spotify url for the track."""
         spotify_url = ""
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             spotify_url = str(metadata["xesam:url"])
         except Exception as e:
             log.error("Cannot fetch spotify url: {}".format(e))
@@ -182,33 +217,36 @@ class DBusClient(object):
 
         return "{} - {} [{}]".format(artist, title, album)
 
-    def get_song_title(self):
+    def get_song_title(self, metadata=None):
         """Gets title of current song from metadata"""
         title = ""
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             title = str(metadata["xesam:title"])
         except Exception as e:
             log.warn("Cannot get song title: {}".format(e))
 
         return title
 
-    def get_song_album(self):
+    def get_song_album(self, metadata=None):
         """Gets album of current song from metadata"""
         album = ""
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             album = str(metadata["xesam:album"])
         except Exception as e:
             log.warn("Cannot get song album: {}".format(e))
 
         return album
 
-    def get_song_artist(self):
+    def get_song_artist(self, metadata=None):
         """Gets the artist of current song from metadata"""
         artist = ""
         try:
-            metadata = self.get_property("Metadata")
+            if metadata is None:
+                metadata = self.get_property("Metadata")
             artist = str(metadata["xesam:artist"][0])
         except Exception as e:
             log.warn("Cannot get song artist: {}".format(e))

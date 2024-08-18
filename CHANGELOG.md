@@ -1,4 +1,16 @@
-# Changelog
+# Version v4.0.0-SNAPSHOT
+This is a work in progress for the next major release.
+## Enhancements
+ - update to GTK4.
+ - CLI awaits for signals from spotify instead of polling.
+## Bugs fixed
+ - fix podcast episodes being muted.
+ - fix PipeWire not being supported.
+## API changes
+ - removed `cli.check_for_blockify_process` and `start_spotify_if_necessary` (and relative options).
+## Dependency updates
+
+# Old changelog
 
 - v3.6.3 (2016-05-20): Fix [issue #105](https://github.com/serialoverflow/blockify/issues/105) by adding new general option "use_window_title".
 - v3.6.2 (2016-05-08): Fix issue where pulse sink would sometimes not be unmuted on exit, fix false positive ad detection on pause for people not using pulseaudio sinks ([issue #97](https://github.com/serialoverflow/blockify/issues/97)), fix pypi installation ([issue #99](https://github.com/serialoverflow/blockify/issues/99)), include README.rst, remove requirements.txt and reimplement dbusclient.py CLI.
