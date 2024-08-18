@@ -331,10 +331,9 @@ class Blockify(object):
         if len(spotify_sink_list):
             sink_infos = [pattern.findall(sink) for sink in spotify_sink_list]
             spotify_status = [sink_status[:3] for sink_status in sink_infos if sink_status[3].lower() == "spotify"]
-            if len(spotify_status) > 0:
-                sink_status = spotify_status[0]
+            return spotify_status
 
-        return sink_status
+        return []
 
     def pulsesink_mute(self, mode):
         """Finds spotify's audio sink and toggles its mute state."""
@@ -346,21 +345,21 @@ class Blockify(object):
             self.use_interlude_music = False
             return
 
-        index, playback_state, muted_value = self.extract_pulse_sink_status(pactl_out)
+        for index, playback_state, muted_value in self.extract_pulse_sink_status(pactl_out):
 
-        self.song_status = "Playing" if playback_state == self.pulse_unmuted_value else "Paused"
-        self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
+            self.song_status = "Playing" if playback_state == self.pulse_unmuted_value else "Paused"
+            self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
 
-        if index:
-            if self.is_sink_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
-                log.info("Forcing unmute.")
-                subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
-            elif not self.is_sink_muted and mode == MuteDetection.FORCE_MUTE:
-                log.info("Muting {}.".format(self.current_song))
-                subprocess.call(["pactl", "set-sink-input-mute", index, "yes"])
-            elif self.is_sink_muted and mode == MuteDetection.AUTOMATIC:
-                log.info("Unmuting.")
-                subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
+            if index:
+                if self.is_sink_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
+                    log.info(f"Forcing unmute Sink-Input#{index}")
+                    subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
+                elif not self.is_sink_muted and mode == MuteDetection.FORCE_MUTE:
+                    log.info(f"Muting Sink-Input#{index}: {self.current_song}.")
+                    subprocess.call(["pactl", "set-sink-input-mute", index, "yes"])
+                elif self.is_sink_muted and mode == MuteDetection.AUTOMATIC:
+                    log.info(f"Unmuting Sink-Input#{index}.")
+                    subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
 
     def prev(self):
         self.spotify.prev()
