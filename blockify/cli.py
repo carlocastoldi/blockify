@@ -44,16 +44,11 @@ class Blockify(object):
     def __init__(self, blocklist):
         self.blocklist = blocklist
         self.orglist = blocklist[:]
-        self.check_for_blockify_process()
-        self.start_spotify_if_necessary()
 
         self._autodetect = util.CONFIG["general"]["autodetect"]
         self._automute = util.CONFIG["general"]["automute"]
         self.autoplay = util.CONFIG["general"]["autoplay"]
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
-        self.update_interval = util.CONFIG["cli"]["update_interval"]
-        self.spotify_refresh_interval = 2500
-        self.suspend_blockify = False
         self.pulse_unmuted_value = ""
         self.song_delimiter = " - "  # u" \u2013 "
         self.found = False
@@ -65,10 +60,9 @@ class Blockify(object):
         self.song_status = ""
         self.is_fully_muted = False
         self.is_sink_muted = False
-        self.dbus = self.initialize_dbus()
-        self.channels = self.initialize_channels()
         self.main_loop = GLib.MainLoop()
-        # main_context = GLib.MainContext()
+        self.spotify = self.connect_to_spotify()
+        self.channels = self.initialize_channels()
         # The gst library used by interludeplayer for some reason modifies
         # argv, overwriting some of docopts functionality in the process,
         # so we import gst here, where docopts cannot be broken anymore.
@@ -85,23 +79,6 @@ class Blockify(object):
                                    self.player.max_index >= 0
 
         log.info("Blockify initialized.")
-
-    def start_spotify_if_necessary(self):
-        if self.check_for_spotify_process():
-            return
-        log.error("No spotify process found.")
-
-        if not util.CONFIG["general"]["start_spotify"]:
-            log.info("Exiting. Bye.")
-            # Gtk.main_quit()
-            self.main_loop.quit()
-
-        self.start_spotify()
-        if not self.check_for_spotify_process():
-            log.error("Failed to start Spotify!")
-            log.info("Exiting. Bye.")
-            # Gtk.main_quit()
-            self.main_loop.quit()
 
     def is_localized_pulseaudio(self):
         """Pulseaudio versions below 7.0 are localized."""
@@ -160,41 +137,6 @@ class Blockify(object):
         locale = gettext.translation(pulseaudio_domain, localedir=localedir, languages=[current_locale])
         locale.install()
 
-    def check_for_blockify_process(self):
-        try:
-            pid = subprocess.check_output(["pgrep", "-f", "^python.*blockify"])
-        except subprocess.CalledProcessError:
-            # No blockify process found. Great, this is what we want.
-            pass
-        else:
-            if pid.strip().decode("utf-8") != str(os.getpid()):
-                log.error("A blockify process is already running. Exiting.")
-                # Gtk.main_quit()
-                self.main_loop.quit()
-
-    def check_for_spotify_process(self):
-        try:
-            pidof_out = subprocess.check_output(["pidof", "spotify"])
-            self.spotify_pids = pidof_out.decode("utf-8").strip().split(" ")
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def start_spotify(self):
-        if util.CONFIG["general"]["start_spotify"]:
-            log.info("Starting Spotify ...")
-            spotify_command = "spotify"
-            if util.CONFIG["general"]["detach_spotify"]:
-                log.debug("Attempting to detach Spotify.")
-                spotify_command += " &"
-            os.system(spotify_command)
-            for _ in range(20):
-                time.sleep(1)
-                spotify_is_running = self.check_for_spotify_process()
-                if spotify_is_running:
-                    log.info("Spotify launched!")
-                    break
-
     def initialize_channels(self):
         channel_list = ["Master"]
         amixer_output = subprocess.check_output("amixer")
@@ -205,59 +147,34 @@ class Blockify(object):
 
         return channel_list
 
-    def initialize_dbus(self):
+    def connect_to_spotify(self):
         try:
             return dbusclient.DBusClient()
         except Exception as e:
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
-            # Gtk.main_quit()
             self.main_loop.quit()
-
-    def refresh_spotify_process_state(self):
-        """Check if Spotify is running periodically. If it's not, suspend blockify."""
-        previous_suspend_state = self.suspend_blockify
-        if not self.check_for_spotify_process():
-            self.suspend_blockify = True
-        else:
-            self.suspend_blockify = False
-
-        if previous_suspend_state is not self.suspend_blockify:
-            if not self.suspend_blockify:
-                self.dbus.connect_to_spotify_dbus(None)
-                self.player.try_resume_spotify_playback(True)
-                log.warn("Spotify was restarted! Connecting now.")
-            else:
-                log.warn("Spotify was closed!")
-
-        return True
-
-    def resume_blockify(self):
-        self.suspend_blockify = False
-        return False
 
     def start(self):
         self.bind_signals()
         # Force unmute to properly initialize unmuted state
 
         self.toggle_mute(MuteDetection.FORCE_UNMUTE)
+        self.update(self.update())
+        self.spotify.on_metadata_change(lambda metadata: self.update(metadata))
 
-        GLib.timeout_add(self.spotify_refresh_interval, self.refresh_spotify_process_state)
-
-        GLib.timeout_add(self.update_interval, self.update)
         if self.autoplay:
             # Delay autoplayback until self.spotify_is_playing was called at least once.
-            GLib.timeout_add(self.update_interval + 100, self.start_autoplay)
+            # GLib.timeout_add(self.update_interval + 100, self.start_autoplay)
+            pass
 
         log.info("Blockify started.")
         self.main_loop.run()
-
-        # Gtk.main()
 
     def start_autoplay(self):
         if self.autoplay:
             log.debug("Autoplay is activated.")
             log.info("Starting Spotify autoplayback.")
-            self.dbus.play()
+            self.spotify.play()
         return False
 
     def adjust_interlude(self):
@@ -267,16 +184,10 @@ class Blockify(object):
     def spotify_is_playing(self):
         return self.song_status == "Playing"
 
-    def update(self):
-        """Main update routine, looped every self.update_interval milliseconds."""
-        if not self.suspend_blockify:
-            # Determine if a commercial is running and act accordingly.
-            self.found = self.find_ad()
-
-            self.adjust_interlude()
-
-        # Always return True to keep looping this method.
-        return True
+    def update(self, metadata=None):
+        # Determine if a commercial is running and act accordingly.
+        self.found = self.find_ad(metadata)
+        self.adjust_interlude()
 
     def find_spotify_window(self):
         spotify_window = None
@@ -292,10 +203,10 @@ class Blockify(object):
 
         return spotify_window
 
-    def find_ad(self):
-        """Main loop. Checks for ads and mutes accordingly."""
+    def find_ad(self, metadata=None):
+        """Checks for ads and mutes accordingly."""
         self.previous_song = self.current_song
-        self.update_current_song_info()
+        self.update_current_song_info(metadata)
 
         # Manual control is enabled so we exit here.
         if not self.automute:
@@ -344,8 +255,8 @@ class Blockify(object):
     def current_song_is_ad(self):
 
         missing_artist = self.current_song_title and not self.current_song_artist
-        has_ad_url = "/ad/" in self.dbus.get_spotify_url()
-        has_podcast_url = "/episode/" in self.dbus.get_spotify_url()
+        has_ad_url = "/ad/" in self.spotify.get_spotify_url()
+        has_podcast_url = "/episode/" in self.spotify.get_spotify_url()
 
         # Since there is no reliable way to determine playback status of Spotify when not using pulseaudio,
         # we return here with a trimmed version of ad detection. At the very least, this won't mute video ads.
@@ -359,9 +270,9 @@ class Blockify(object):
 
         return (missing_artist and not has_podcast_url) or has_ad_url or title_mismatch
 
-    def update_current_song_info(self):
-        self.current_song_artist = self.dbus.get_song_artist()
-        self.current_song_title = self.dbus.get_song_title()
+    def update_current_song_info(self, metadata=None):
+        self.current_song_artist = self.spotify.get_song_artist(metadata)
+        self.current_song_title = self.spotify.get_song_title(metadata)
         self.current_song = self.current_song_artist + self.song_delimiter + self.current_song_title
         if util.CONFIG["general"]["use_window_title"]:
             self.current_song_from_window_title = self.get_current_song_from_window_title()
@@ -447,22 +358,18 @@ class Blockify(object):
 
     def extract_pulse_sink_status(self, pactl_out):
         sink_status = ("", "", "")  # index, playback_status, muted_value
-        # Match muted_value and application.process.id values.
-        pattern = re.compile(r"(?: Sink Input #|Corked|Mute|application\.process\.id).*?(\w+)")
+        # Match sink id, muted values and media.name from output of "pactl list sink-inputs"
+        pattern = re.compile(r"(?: Sink Input #|Corked|Mute|media\.name).*?(\w+)")
         # Put valid spotify PIDs in a list
         output = pactl_out.decode("utf-8")
 
         spotify_sink_list = [" Sink Input #" + i for i in output.split("Sink Input #") if "spotify" in i]
 
-        if len(spotify_sink_list) and self.spotify_pids:
+        if len(spotify_sink_list):
             sink_infos = [pattern.findall(sink) for sink in spotify_sink_list]
-            # Every third element per sublist is a key, the value is the preceding
-            # two elements in the form of a tuple - {pid : (index, playback_status, muted_value)}
-            idxd = {sink_status[3]: (sink_status[0], sink_status[1], sink_status[2]) for sink_status in sink_infos if
-                    4 == len(sink_status)}
-
-            pid = [k for k in idxd.keys() if k in self.spotify_pids][0]
-            sink_status = idxd[pid]
+            spotify_status = [sink_status[:3] for sink_status in sink_infos if sink_status[3].lower() == "spotify"]
+            if len(spotify_status) > 0:
+                sink_status = spotify_status[0]
 
         return sink_status
 
@@ -477,6 +384,7 @@ class Blockify(object):
             return
 
         index, playback_state, muted_value = self.extract_pulse_sink_status(pactl_out)
+
         self.song_status = "Playing" if playback_state == self.pulse_unmuted_value else "Paused"
         self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
 
@@ -492,11 +400,11 @@ class Blockify(object):
                 subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
 
     def prev(self):
-        self.dbus.prev()
+        self.spotify.prev()
         self.player.try_resume_spotify_playback()
 
     def next(self):
-        self.dbus.next()
+        self.spotify.next()
         self.player.try_resume_spotify_playback()
 
     def signal_stop_received(self, sig, hdl):
@@ -521,7 +429,7 @@ class Blockify(object):
 
     def signal_playpause_received(self, sig, hdl):
         log.debug("Signal {} received. Toggling play state.".format(sig))
-        self.dbus.playpause()
+        self.spotify.playpause()
 
     def signal_toggle_block_received(self, sig, hdl):
         log.debug("Signal {} received. Toggling blocked state.".format(sig))
@@ -575,7 +483,6 @@ class Blockify(object):
 
     def stop(self):
         self.prepare_stop()
-        # Gtk.main_quit()
         self.main_loop.quit()
         sys.exit()
 

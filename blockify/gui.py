@@ -688,7 +688,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
     def format_current_song_info(self):
         artist = self.b.current_song_artist
         title = self.b.current_song_title
-        album = self.b.dbus.get_song_album()
+        album = self.b.spotify.get_song_album()
 
         if self.b.found:
             artist = "Ad detected"
@@ -703,7 +703,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
 
     def get_cover_art(self):
         cover_file = ""
-        cover_hash = os.path.basename(self.b.dbus.get_art_url())
+        cover_hash = os.path.basename(self.b.spotify.get_art_url())
 
         if cover_hash:
             # The url spotify gets its cover images from. Filename is a hash, the last part of metadata["artUrl"]
@@ -718,11 +718,11 @@ class BlockifyUI(Gtk.ApplicationWindow):
 
     def format_status_text(self):
         status = ""
-        song_length = self.b.dbus.get_song_length()
+        song_length = self.b.spotify.get_song_length()
 
         if song_length:
             m, s = divmod(song_length, 60)
-            r = self.b.dbus.get_property("Metadata")["xesam:autoRating"]
+            r = self.b.spotify.get_property("Metadata")["xesam:autoRating"]
             status = "{}m{}s, {} ({})".format(m, s, r, self.b.song_status)
 
         return status
@@ -744,7 +744,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
         self.b.use_interlude_music = False
         # self.interlude_box.hide()
         self.b.player.pause()
-        self.b.dbus.play()
+        self.b.spotify.play()
         self.toggle_interlude_btn.set_label("Enable player")
         # self.restore_size()
 
@@ -757,13 +757,13 @@ class BlockifyUI(Gtk.ApplicationWindow):
     def toggle_interlude(self):
         if not self.b.player.is_playing():
             self.b.player.manual_control = False
-            self.b.dbus.pause()
+            self.b.spotify.pause()
             self.b.player.play()
         else:
             self.b.player.manual_control = True
             self.b.player.pause()
             if not self.b.found and not self.b.current_song:  # or not self.b.spotify_is_playing()
-                self.b.dbus.play()
+                self.b.spotify.play()
 
     def on_delete_event(self, window, event):
         self.hide_on_delete()
@@ -969,7 +969,7 @@ class BlockifyUI(Gtk.ApplicationWindow):
                 self.editor.destroy()
 
     def on_toggle_play_btn(self, widget):
-        self.b.dbus.playpause()
+        self.b.spotify.playpause()
         if self.b.spotify_is_playing():
             self.b.player.pause()
 

@@ -1,7 +1,5 @@
 # blockify
 
-**Important**: This application is no longer being maintained. Please note that using ad blockers is prohibited by Spotify. I highly encourage everyone to support Spotify and your favorite artists by buying a subscription.  
-
 Blockify is a linux only application that allows you to automatically mute songs and advertisements in Spotify.
 
 
@@ -17,10 +15,11 @@ Mandatory:
   - alsa-utils
   - PyGObject 3
   - GTK+ 3
+  - pactl / libpulse
 
 Optional but highly recommended:
-  - Pulseaudio (allows muting Spotify instead of all system sound)
-  - Gstreamer1.0 (used to play music of your choice during muted ads. Requires pulseaudio.)
+  - PipeWire/Pulseaudio (allows muting Spotify instead of all system sound)
+  - Gstreamer1.0 (used to play music of your choice during muted ads. Requires PipeWire/Pulseaudio.)
 
 Optional:
   - docopt (provides a command-line interface for blockify and blockify-ui)
@@ -32,18 +31,14 @@ On ArchLinux, you can install all dependencies as follows:
 
 #### Arch Linux
 
-Available via AUR here: https://aur.archlinux.org/packages/?O=0&K=blockify
+Available via AUR here: https://aur.archlinux.org/packages/blockify-git
 
 Example ArchLinux installation routine:  
 ``` bash
-git clone https://aur.archlinux.org/blockify.git
+git clone https://aur.archlinux.org/blockify-git.git
 cd blockify
 makepkg -sri
 ```
-
-#### Fedora and openSUSE
-
-Available in the [openSUSE build service](https://build.opensuse.org/package/show/home:fusion809/blockify).
 
 #### Debian
 
@@ -74,7 +69,7 @@ sudo apt-get install git python3-pip python3-gst-1.0 python3-requests python3-do
 Install routine:  
 ```bash
 # Install blockify
-sudo pip3 install git+https://github.com/serialoverflow/blockify
+sudo pip3 install git+https://github.com/carlocastoldi/blockify
 echo -e '[Desktop Entry]\nName=Blockify\nComment=Blocks Spotify commercials\nExec=blockify-ui\nIcon='$(python3 -c 'import pkg_resources; print(pkg_resources.resource_filename("blockify", "data/icon-red-512.png"))')'\nType=Application\nCategories=AudioVideo' | sudo tee /usr/share/applications/blockify.desktop
 ```
 
