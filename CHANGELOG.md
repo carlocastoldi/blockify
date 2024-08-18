@@ -8,6 +8,7 @@ This is a work in progress for the next major release.
  - fix PipeWire not being supported.
 ## API changes
  - removed `cli.check_for_blockify_process` and `start_spotify_if_necessary` (and relative options).
+ - removed `cli.current_song_from_window_title` (and relative option "use_window_title")
 ## Dependency updates
 
 # Old changelog
