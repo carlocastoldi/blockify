@@ -23,6 +23,11 @@ from blockify import util
 log = logging.getLogger("cli")
 
 from enum import Enum
+from dbus.mainloop.glib import DBusGMainLoop
+
+import gi
+gi.require_version("Gtk", "4.0")
+from gi.repository import GLib
 
 from blockify import blocklist
 from blockify import dbusclient
@@ -52,6 +57,10 @@ class Blockify(object):
         self.song_status = ""
         self.is_fully_muted = False
         self.is_sink_muted = False
+
+        # DBusGMainLoop(set_as_default=True)
+        self.main_loop = GLib.MainLoop()
+
         self.spotify = self.connect_to_spotify()
         self.channels = self.initialize_channels()
 
@@ -131,8 +140,12 @@ class Blockify(object):
     def connect_to_spotify(self):
         try:
             return dbusclient.DBusClient()
+        except KeyboardInterrupt as e:
+            self.stop()
+            # sys.exit(0)
         except Exception as e:
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
+            # self.main_loop.quit()
             sys.exit(-1)
 
     def start(self):
@@ -140,7 +153,7 @@ class Blockify(object):
         # Force unmute to properly initialize unmuted state
 
         self.toggle_mute(MuteDetection.FORCE_UNMUTE)
-        self.update(self.update())
+        self.update()
         self.spotify.on_metadata_change(lambda metadata: self.update(metadata))
 
         if self.autoplay:
@@ -149,6 +162,7 @@ class Blockify(object):
             pass
 
         log.info("Blockify started.")
+        self.main_loop.run()
 
     def start_autoplay(self):
         if self.autoplay:
@@ -162,11 +176,11 @@ class Blockify(object):
 
     def update(self, metadata=None):
         # Determine if a commercial is running and act accordingly.
+        logging.info(self.spotify.get_song())
         self.found = self.find_ad(metadata)
 
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
-        self.previous_song = self.current_song
         self.update_current_song_info(metadata)
 
         # Manual control is enabled so we exit here.
@@ -331,12 +345,6 @@ class Blockify(object):
                     log.info(f"Unmuting Sink-Input#{index}.")
                     subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
 
-    def prev(self):
-        self.spotify.prev()
-
-    def next(self):
-        self.spotify.next()
-
     def signal_stop_received(self, sig, hdl):
         log.debug("{} received. Exiting safely.".format(sig))
         self.stop()
@@ -349,18 +357,6 @@ class Blockify(object):
         log.debug("Signal {} received. Unblocking current song.".format(sig))
         self.unblock_current()
 
-    def signal_prev_received(self, sig, hdl):
-        log.debug("Signal {} received. Playing previous interlude.".format(sig))
-        self.prev()
-
-    def signal_next_received(self, sig, hdl):
-        log.debug("Signal {} received. Playing next song.".format(sig))
-        self.next()
-
-    def signal_playpause_received(self, sig, hdl):
-        log.debug("Signal {} received. Toggling play state.".format(sig))
-        self.spotify.playpause()
-
     def signal_toggle_block_received(self, sig, hdl):
         log.debug("Signal {} received. Toggling blocked state.".format(sig))
         self.toggle_block()
@@ -372,10 +368,6 @@ class Blockify(object):
 
         signal.signal(signal.SIGUSR1, self.signal_block_received)  # 10
         signal.signal(signal.SIGUSR2, self.signal_unblock_received)  # 12
-
-        signal.signal(signal.SIGRTMIN, self.signal_prev_received)  # 34
-        signal.signal(signal.SIGRTMIN + 1, self.signal_next_received)  # 35
-        signal.signal(signal.SIGRTMIN + 2, self.signal_playpause_received)  # 35
         signal.signal(signal.SIGRTMIN + 3, self.signal_toggle_block_received)  # 37
 
     def prepare_stop(self):
@@ -384,10 +376,12 @@ class Blockify(object):
         if self.blocklist != self.orglist:
             self.blocklist.save()
         # Unmute before exiting.
-        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
+        if "mutemethod" in self.__dict__:
+            self.toggle_mute(MuteDetection.FORCE_UNMUTE)
 
     def stop(self):
         self.prepare_stop()
+        self.main_loop.quit()
         sys.exit()
 
     def toggle_block(self):
