@@ -17,22 +17,15 @@ import re
 import signal
 import subprocess
 import sys
-import time
 
 from blockify import util
 
 log = logging.getLogger("cli")
 
 from enum import Enum
-from gi import require_version
-
-require_version('Gtk', '4.0')
-from gi.repository import Gtk
-from gi.repository import GObject, GLib
 
 from blockify import blocklist
 from blockify import dbusclient
-from blockify import interludeplayer
 
 
 class MuteDetection(Enum):
@@ -59,23 +52,12 @@ class Blockify(object):
         self.song_status = ""
         self.is_fully_muted = False
         self.is_sink_muted = False
-        self.main_loop = GLib.MainLoop()
         self.spotify = self.connect_to_spotify()
         self.channels = self.initialize_channels()
-        # The gst library used by interludeplayer for some reason modifies
-        # argv, overwriting some of docopts functionality in the process,
-        # so we import gst here, where docopts cannot be broken anymore.
-        # import interludeplayer
-        self.player = interludeplayer.InterludePlayer(self)
 
         self.initialize_mute_method()
 
         self.initialize_pulse_unmuted_value()
-
-        # Only use interlude music if we use pulse sinks and the interlude playlist is non-empty.
-        self.use_interlude_music = util.CONFIG["interlude"]["use_interlude_music"] and \
-                                   self.mutemethod == self.pulsesink_mute and \
-                                   self.player.max_index >= 0
 
         log.info("Blockify initialized.")
 
@@ -151,7 +133,7 @@ class Blockify(object):
             return dbusclient.DBusClient()
         except Exception as e:
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
-            self.main_loop.quit()
+            sys.exit(-1)
 
     def start(self):
         self.bind_signals()
@@ -167,7 +149,6 @@ class Blockify(object):
             pass
 
         log.info("Blockify started.")
-        self.main_loop.run()
 
     def start_autoplay(self):
         if self.autoplay:
@@ -176,17 +157,12 @@ class Blockify(object):
             self.spotify.play()
         return False
 
-    def adjust_interlude(self):
-        if self.use_interlude_music:
-            self.player.toggle_music()
-
     def spotify_is_playing(self):
         return self.song_status == "Playing"
 
     def update(self, metadata=None):
         # Determine if a commercial is running and act accordingly.
         self.found = self.find_ad(metadata)
-        self.adjust_interlude()
 
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
@@ -199,9 +175,6 @@ class Blockify(object):
 
         # if True:
         if self.autodetect and self.current_song and self.current_song_is_ad():
-            if self.use_interlude_music and not self.player.temp_disable:
-                self.player.temp_disable = True
-                GLib.timeout_add(self.player.playback_delay, self.player.play_with_delay)
             self.ad_found()
             return True
 
@@ -222,7 +195,7 @@ class Blockify(object):
 
         # Unmute with a certain delay to avoid the last second
         # of commercial you sometimes hear because it's unmuted too early.
-        GLib.timeout_add(self.unmute_delay, self.unmute_with_delay)
+        # GLib.timeout_add(self.unmute_delay, self.unmute_with_delay) # NOTE: commented out to remove Glib dependency
 
         return False
 
@@ -258,8 +231,6 @@ class Blockify(object):
 
     def unblock_current(self):
         if self.current_song:
-            if self.use_interlude_music:
-                self.player.pause()
             song = self.blocklist.find(self.current_song)
             if song:
                 self.blocklist.remove(song)
@@ -342,7 +313,6 @@ class Blockify(object):
         except subprocess.CalledProcessError:
             log.error("Spotify sink not found. Is Pulse running? Resorting to pulse amixer as mute method.")
             self.mutemethod = self.pulse_mute  # Fall back to amixer mute.
-            self.use_interlude_music = False
             return
 
         for index, playback_state, muted_value in self.extract_pulse_sink_status(pactl_out):
@@ -363,11 +333,9 @@ class Blockify(object):
 
     def prev(self):
         self.spotify.prev()
-        self.player.try_resume_spotify_playback()
 
     def next(self):
         self.spotify.next()
-        self.player.try_resume_spotify_playback()
 
     def signal_stop_received(self, sig, hdl):
         log.debug("{} received. Exiting safely.".format(sig))
@@ -397,22 +365,6 @@ class Blockify(object):
         log.debug("Signal {} received. Toggling blocked state.".format(sig))
         self.toggle_block()
 
-    def signal_prev_interlude_received(self, sig, hdl):
-        log.debug("Signal {} received. Playing previous interlude.".format(sig))
-        self.player.prev()
-
-    def signal_next_interlude_received(self, sig, hdl):
-        log.debug("Signal {} received. Playing next interlude.".format(sig))
-        self.player.next()
-
-    def signal_playpause_interlude_received(self, sig, hdl):
-        log.debug("Signal {} received. Toggling interlude play state.".format(sig))
-        self.player.playpause()
-
-    def signal_toggle_autoresume_received(self, sig, hdl):
-        log.debug("Signal {} received. Toggling autoresume.".format(sig))
-        self.player.toggle_autoresume()
-
     def bind_signals(self):
         """Catch signals because it seems like a great idea, right? ... Right?"""
         signal.signal(signal.SIGINT, self.signal_stop_received)  # 9
@@ -426,17 +378,8 @@ class Blockify(object):
         signal.signal(signal.SIGRTMIN + 2, self.signal_playpause_received)  # 35
         signal.signal(signal.SIGRTMIN + 3, self.signal_toggle_block_received)  # 37
 
-        signal.signal(signal.SIGRTMIN + 10, self.signal_prev_interlude_received)  # 44
-        signal.signal(signal.SIGRTMIN + 11, self.signal_next_interlude_received)  # 45
-        signal.signal(signal.SIGRTMIN + 12, self.signal_playpause_interlude_received)  # 46
-        signal.signal(signal.SIGRTMIN + 13, self.signal_toggle_autoresume_received)  # 47
-
     def prepare_stop(self):
         log.info("Exiting safely. Bye.")
-        # Stop the interlude player.
-        if self.use_interlude_music:
-            self.use_interlude_music = False
-            self.player.stop()
         # Save the list only if it changed during runtime.
         if self.blocklist != self.orglist:
             self.blocklist.save()
@@ -445,7 +388,6 @@ class Blockify(object):
 
     def stop(self):
         self.prepare_stop()
-        self.main_loop.quit()
         sys.exit()
 
     def toggle_block(self):
@@ -454,8 +396,6 @@ class Blockify(object):
             self.unblock_current()
         else:
             self.block_current()
-            if self.use_interlude_music:
-                self.player.manual_control = False
 
     @property
     def automute(self):
