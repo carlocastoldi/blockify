@@ -100,13 +100,6 @@ def get_default_options():
             "update_interval": 350,
             "unmute_delay": 700
         },
-        "gui": {
-            "update_interval": 500,
-            "unmute_delay": 650,
-            "use_cover_art": True,
-            "autohide_cover": False,
-            "start_minimized": False
-        },
         "interlude": {
             "use_interlude_music": True,
             "start_shuffled": False,
@@ -159,7 +152,7 @@ def read_option(config, section_name, option_name, option_value, default_option_
 def save_options(config_file, options):
     config = configparser.ConfigParser()
     # Write out the sections in this order. Using options keys would be unpredictable.
-    sections = ["general", "cli", "gui", "interlude"]
+    sections = ["general", "cli", "interlude"]
     for section in sections:
         config.add_section(section)
         for k, v in options[section].items():
