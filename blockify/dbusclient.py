@@ -17,7 +17,7 @@ import logging
 import re
 import sys
 
-import dbus
+import dbus # from dbus-python package
 import dbus.types
 from dbus.mainloop.glib import DBusGMainLoop
 

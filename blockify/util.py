@@ -16,7 +16,6 @@ CONFIG = None
 CONFIG_DIR = os.path.expanduser("~/.config/blockify")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "blockify.ini")
 BLOCKLIST_FILE = os.path.join(CONFIG_DIR, "blocklist.txt")
-PLAYLIST_FILE = os.path.join(CONFIG_DIR, "playlist.m3u")
 THUMBNAIL_DIR = os.path.join(CONFIG_DIR, "thumbnails")
 
 
@@ -100,14 +99,6 @@ def get_default_options():
             "update_interval": 350,
             "unmute_delay": 700
         },
-        "interlude": {
-            "use_interlude_music": True,
-            "start_shuffled": False,
-            "autoresume": True,
-            "playlist": PLAYLIST_FILE,
-            "radio_timeout": 180,
-            "playback_delay": 500
-        }
     }
 
 
@@ -126,8 +117,6 @@ def load_options():
                                      options[section_name][option_name])
                 if option is not None:
                     options[section_name][option_name] = option
-        if not options["interlude"]["playlist"]:
-            options["interlude"]["playlist"] = PLAYLIST_FILE
         log.info("Configuration loaded.")
 
     return options
@@ -152,7 +141,7 @@ def read_option(config, section_name, option_name, option_value, default_option_
 def save_options(config_file, options):
     config = configparser.ConfigParser()
     # Write out the sections in this order. Using options keys would be unpredictable.
-    sections = ["general", "cli", "interlude"]
+    sections = ["general", "cli"]
     for section in sections:
         config.add_section(section)
         for k, v in options[section].items():
