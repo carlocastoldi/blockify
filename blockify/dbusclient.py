@@ -16,6 +16,7 @@ Options:
 import logging
 import re
 import sys
+import time
 
 import dbus # from dbus-python package
 import dbus.types
@@ -33,26 +34,36 @@ class DBusClient(object):
         self.obj_path = "/org/mpris/MediaPlayer2"
         self.prop_path = "org.freedesktop.DBus.Properties"
         self.player_path = "org.mpris.MediaPlayer2.Player"
-        self.spotify_path = None
+        # self.spotify_path = None
+        self.spotify_path = "org.mpris.MediaPlayer2.spotify" # instead of bus.list_names() bus
 
         self.connect_to_spotify_dbus(bus)
 
     def connect_to_spotify_dbus(self, bus):
         if not bus:
             bus = dbus.SessionBus(mainloop=DBusGMainLoop())
+            # bus = dbus.SessionBus()
         self.session_bus = bus
 
-        for name in bus.list_names():
-            if re.match(r".*mpris.*spotify", name):
-                self.spotify_path = str(name)
+        # for name in bus.list_names():
+        #     if re.match(r".*mpris.*spotify", name):
+        #         self.spotify_path = str(name)
+        # if self.spotify_path is None:
+        #     raise RuntimeError("No active spotify session detected")
+        # else:
+        #     log.warning("SPOTIFY PATH:"+self.spotify_path)
 
-        try:
-            self.proxy = self.session_bus.get_object(self.spotify_path,
-                                                     self.obj_path)
-            self.properties = dbus.Interface(self.proxy, self.prop_path)
-            self.player = dbus.Interface(self.proxy, self.player_path)
-        except Exception as e:
-            log.error("Could not connect to Spotify dbus session: {}".format(e))
+        not_connected = True
+        while not_connected:
+            try:
+                self.proxy = self.session_bus.get_object(self.spotify_path,
+                                                        self.obj_path)
+                self.properties = dbus.Interface(self.proxy, self.prop_path)
+                self.player = dbus.Interface(self.proxy, self.player_path)
+                not_connected = False
+            except Exception as e:
+                time.sleep(2)
+                pass #log.error("Could not connect to Spotify dbus session: {}".format(e))
 
     def on_property_change(self, fun):
         self.session_bus.add_signal_receiver(
