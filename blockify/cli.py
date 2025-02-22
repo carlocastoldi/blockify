@@ -225,14 +225,14 @@ class Blockify(object):
         signal.signal(signal.SIGINT, self.signal_stop_received)  # 9
         signal.signal(signal.SIGTERM, self.signal_stop_received)  # 15
 
-        signal.signal(signal.SIGUSR1, self.signal_block_received)  # 10
-        signal.signal(signal.SIGUSR2, self.signal_unblock_received)  # 12
-        signal.signal(signal.SIGRTMIN + 3, self.signal_toggle_block_received)  # 37
+        signal.signal(signal.SIGUSR1, self.signal_toggle_block_received)  # 37
+        signal.signal(signal.SIGUSR2, self.signal_block_received)  # 10
+        signal.signal(signal.SIGRTMIN, self.signal_unblock_received)  # 12
 
 
 def initialize(doc=__doc__):
     try:
-        args = util.docopt(doc, version="blockify {}".format(util.VERSION))
+        args = util.docopt(doc, version=f"blockify {util.VERSION}")
     except Exception:
         args = None
     util.initialize(args)
