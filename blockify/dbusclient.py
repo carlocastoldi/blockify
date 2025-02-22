@@ -89,7 +89,7 @@ class DBusClient(object):
                 return
             if "PlaybackStatus" in changed_properties:
                 if "Playing" == str(changed_properties["PlaybackStatus"]):
-                    metadata = self.get_property("Metadata")
+                    metadata = self._get_metadata()
                 else:
                     return
             else:
@@ -177,12 +177,16 @@ class DBusClient(object):
         except Exception as e:
             log.warning("Cannot Seek: {}".format(e))
 
+    def _get_metadata(self) -> dict:
+        """Get a dictionary with all metadata"""
+        return self.get_property("Metadata")
+
     def get_song_length(self, metadata=None):
         """Gets the length of current song from metadata (in seconds)."""
         length = 0
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             length = int(metadata["mpris:length"] / 1000000)
         except Exception as e:
             log.warning("Cannot get song length: {}".format(e))
@@ -194,7 +198,7 @@ class DBusClient(object):
         art_url = ""
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             art_url = str(metadata["mpris:artUrl"])
         except Exception as e:
             log.error("Cannot fetch album cover url: {}".format(e))
@@ -206,7 +210,7 @@ class DBusClient(object):
         spotify_url = ""
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             spotify_url = str(metadata["xesam:url"])
         except Exception as e:
             log.error("Cannot fetch spotify url: {}".format(e))
@@ -235,7 +239,7 @@ class DBusClient(object):
         title = ""
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             title = str(metadata["xesam:title"])
         except Exception as e:
             log.warning("Cannot get song title: {}".format(e))
@@ -247,7 +251,7 @@ class DBusClient(object):
         album = ""
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             album = str(metadata["xesam:album"])
         except Exception as e:
             log.warning("Cannot get song album: {}".format(e))
@@ -259,7 +263,7 @@ class DBusClient(object):
         artist = ""
         try:
             if metadata is None:
-                metadata = self.get_property("Metadata")
+                metadata = self._get_metadata()
             artist = str(metadata["xesam:artist"][0])
         except Exception as e:
             log.warning("Cannot get song artist: {}".format(e))
@@ -270,7 +274,7 @@ class DBusClient(object):
 def print_all(dbus_client):
     """Print all the DBus info we can get our hands on."""
     try:
-        metadata = dbus_client.get_property("Metadata")
+        metadata = dbus_client.get_metadata()
 
         d_keys = list(metadata.keys())
         d_keys.sort()
@@ -292,7 +296,7 @@ def print_all(dbus_client):
 def print_song(dbus_client):
     length = dbus_client.get_song_length()
     m, s = divmod(length, 60)
-    rating = dbus_client.get_property("Metadata")["xesam:autoRating"]
+    rating = dbus_client.get_metadata()["xesam:autoRating"]
     song = dbus_client.get_song()
     print("{}, {}m{}s, {}".format(song, m, s, rating))
 

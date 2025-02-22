@@ -125,4 +125,5 @@ class PulseSink():
         self.is_muted = False
 
     def toggle(self):
+        # never used
         self.unmute() if self.is_muted else self.mute()
