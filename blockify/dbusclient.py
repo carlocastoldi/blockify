@@ -20,6 +20,7 @@ import time
 
 import dbus # from dbus-python package
 import dbus.types
+import dbus.exceptions
 from dbus.mainloop.glib import DBusGMainLoop
 
 from blockify import util
@@ -65,9 +66,8 @@ class SpotifyDBusClient(object):
                 self.properties = dbus.Interface(self.proxy, self.prop_path)
                 self.player = dbus.Interface(self.proxy, self.player_path)
                 not_connected = False
-            except Exception as e:
+            except dbus.exceptions.DBusException:
                 time.sleep(2)
-                pass #log.error("Could not connect to Spotify dbus session: {}".format(e))
         log.info("Connection established!")
 
     def on_property_change(self, fun):
@@ -97,6 +97,7 @@ class SpotifyDBusClient(object):
                     return
             else:
                 metadata: dbus.types.Dictionary = changed_properties["Metadata"]
+            log.debug(f"metadata changed: interface={interface_name}, changed_properties={changed_properties}, invalidated_properties={invalidated_properties}")
             fun(metadata)
         self.on_property_change(_playback_status_changed)
 
