@@ -31,12 +31,10 @@ class MuteDetection(Enum):
     FORCE_UNMUTE = 2
 
 class Blockify(object):
-    def __init__(self, blocklist):
+    def __init__(self, blocklist: blocklist.Blocklist):
         self.blocklist = blocklist
         self.orglist = blocklist[:]
 
-        self._autodetect = util.CONFIG["general"]["autodetect"]
-        self._automute = util.CONFIG["general"]["automute"]
         self.autoplay = util.CONFIG["general"]["autoplay"]
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
         self.song_delimiter = " - "  # u" \u2013 "
@@ -120,8 +118,8 @@ class Blockify(object):
         self.update_current_song_info(metadata)
 
         # if True:
-        if self.autodetect and self.current_song and self.current_song_is_ad():
-            self.ad_found()
+        if self.current_song and self.current_song_is_ad():
+            self.toggle_mute(MuteDetection.FORCE_MUTE)
             return True
 
         # Check if the blockfile has changed.
@@ -136,18 +134,14 @@ class Blockify(object):
             self.blocklist.__init__()
 
         if self.blocklist.find(self.current_song):
-            self.ad_found()
+            self.toggle_mute(MuteDetection.FORCE_MUTE)
             return True
 
         # Unmute with a certain delay to avoid the last second
         # of commercial you sometimes hear because it's unmuted too early.
-        # GLib.timeout_add(self.unmute_delay, self.unmute_with_delay) # NOTE: commented out to remove Glib dependency
+        GLib.timeout_add(self.unmute_delay, self.unmute_with_delay)
 
         return False
-
-    def ad_found(self):
-        # log.debug("Ad found: {0}".format(self.current_song))
-        self.toggle_mute(MuteDetection.FORCE_MUTE)
 
     def unmute_with_delay(self):
         if not self.found:
@@ -214,8 +208,7 @@ class Blockify(object):
         if self.blocklist != self.orglist:
             self.blocklist.save()
         # Unmute before exiting.
-        if "mutemethod" in self.__dict__:
-            self.toggle_mute(MuteDetection.FORCE_UNMUTE)
+        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
 
     def stop(self):
         self.prepare_stop()
@@ -228,15 +221,6 @@ class Blockify(object):
             self.unblock_current()
         else:
             self.block_current()
-
-    @property
-    def autodetect(self):
-        return self._autodetect
-
-    @autodetect.setter
-    def autodetect(self, boolean):
-        log.debug("Autodetect: {}.".format(boolean))
-        self._autodetect = boolean
 
 
 def initialize(doc=__doc__):
