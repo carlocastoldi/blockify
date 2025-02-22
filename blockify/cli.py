@@ -75,23 +75,27 @@ class Blockify(object):
             self.muter.mute()
 
     def connect_to_spotify(self):
+        self.spotify = dbusclient.SpotifyDBusClient()
+        if self.establish_spotify_connection(): # blocking call
+            self.reconnect_if_closed(self.spotify.get_xdg_dbus())
+        return self.spotify
+
+    def establish_spotify_connection(self):
         try:
-            self.spotify = dbusclient.SpotifyDBusClient() # blocking call
             self.spotify.connect()
         except KeyboardInterrupt as e:
             self.stop()
-            # sys.exit(0)
-        except Exception as e:
-            log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
-            self.main_loop.quit()
-            sys.exit(-1)
-        self.reconnect_if_closed(self.spotify.get_xdg_dbus())
-        return self.spotify
+            return False
+        except SystemExit:
+            # self.stop() was already called on another thread
+            return False
+        return True
 
     def reconnect_if_closed(self, xdg_bus):
             def reconnect(bus_name, old_owner, new_owner):
                 log.info("Lost connection to spotify.")
-                self.spotify.connect()
+                if self.establish_spotify_connection():
+                    self.start_autoplay()
             xdg_bus.connect_to_signal(
                 signal_name="NameOwnerChanged",
                 handler_function=reconnect,
@@ -102,7 +106,8 @@ class Blockify(object):
 
     def start(self):
         def on_spotify_update(metadata=None):
-            logging.info(self.spotify.get_song())
+            # NOTE: if autoplay is active and spotify was restarted, then this is executed twice in a row.
+            log.info(self.spotify.get_song())
             self.find_ad(metadata)
 
         self.bind_signals()
@@ -120,10 +125,8 @@ class Blockify(object):
 
     def start_autoplay(self):
         if self.autoplay:
-            log.debug("Autoplay is activated.")
             log.info("Starting Spotify autoplayback.")
             self.spotify.play()
-        return False
 
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
