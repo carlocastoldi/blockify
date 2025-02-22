@@ -63,5 +63,5 @@ pycairo = ">=1.16"
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.12"
-content-hash = "55be7fc558f2b14aefc7748726c4b56f9e902cdc8da521a40942d59a09c3fc20"
+python-versions = ">=3.9,<4.0"
+content-hash = "6fc29a1c44776b26eab5bdee3adf1d2e9466879346cb4a1432c03d4a2ccb8563"
