@@ -35,7 +35,6 @@ class Blockify(object):
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
         self.found = False # used by unmute_with_delay() to check if, in the meantime, no ad was found
         self.current_song = ""
-        self.song_status = ""
 
         try:
             self.muter = PulseMuter()
@@ -98,8 +97,7 @@ class Blockify(object):
         self.spotify.on_metadata_change(on_spotify_update)
 
         if self.autoplay:
-            # Delay autoplayback until self.spotify_is_playing was called at least once.
-            # GLib.timeout_add(self.update_interval + 100, self.start_autoplay)
+            GLib.timeout_add(100, self.start_autoplay)
             pass
 
         log.info("Blockify started.")
@@ -111,9 +109,6 @@ class Blockify(object):
             log.info("Starting Spotify autoplayback.")
             self.spotify.play()
         return False
-
-    def spotify_is_playing(self):
-        return self.song_status == "Playing"
 
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
