@@ -33,10 +33,9 @@ class Blockify(object):
 
         self.autoplay = util.CONFIG["general"]["autoplay"]
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
-        self.found = False
+        self.found = False # used by unmute_with_delay() to check if, in the meantime, no ad was found
         self.current_song = ""
         self.song_status = ""
-        self.is_fully_muted = False
 
         try:
             self.muter = PulseMuter()
@@ -90,7 +89,7 @@ class Blockify(object):
     def start(self):
         def on_spotify_update(metadata=None):
             logging.info(self.spotify.get_song())
-            self.found = self.find_ad(metadata)
+            self.find_ad(metadata)
 
         self.bind_signals()
         # Force unmute to properly initialize unmuted state
@@ -129,7 +128,8 @@ class Blockify(object):
         # if True:
         if self.current_song_is_ad(artist, title, self.spotify.get_spotify_url(metadata)):
             self.mute()
-            return True
+            self.found = True
+            return
 
         # Check if the blockfile has changed.
         try:
@@ -144,18 +144,17 @@ class Blockify(object):
 
         if self.blocklist.find(self.current_song):
             self.mute()
-            return True
+            self.found = True
+            return
 
         # Unmute with a certain delay to avoid the last second
         # of commercial you sometimes hear because it's unmuted too early.
+        self.found = False
         GLib.timeout_add(self.unmute_delay, self.unmute_with_delay)
-
-        return False
 
     def unmute_with_delay(self):
         if not self.found:
             self.unmute()
-        return False
 
     # Audio ads typically have no artist information (via DBus) and/or "/ad/" in their spotify url.
     def current_song_is_ad(self, artist: str, title: str, spotify_url):
