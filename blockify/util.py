@@ -1,5 +1,6 @@
 import codecs
 import configparser
+import importlib.metadata
 import logging
 import os
 import sys
@@ -13,7 +14,7 @@ try:
 except ImportError:
     log.error("ImportError: Please install docopt to use the DBus CLI.")
 
-VERSION = "3.6.3"
+VERSION = importlib.metadata.version("blockify")
 CONFIG = None
 if "XDG_CONFIG_HOME" in os.environ:
     CONFIG_DIR = Path(os.environ["XDG_CONFIG_HOME"])/"blockify"
