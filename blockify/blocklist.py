@@ -36,7 +36,7 @@ class Blocklist(list):
             super(Blocklist, self).remove(item)
             self.save()
         except ValueError as e:
-            log.warn("Could not remove {} from blocklist: {}".format(item, e))
+            log.warning("Could not remove {} from blocklist: {}".format(item, e))
 
     def find(self, song):
         if self.use_substring_search:
@@ -51,8 +51,8 @@ class Blocklist(list):
                         return item
                 song = song[:int(len(song) / 2)]
 
-    def get_timestamp(self):
-        return os.path.getmtime(self.location)
+    def get_timestamp(self) -> float:
+        return self.location.stat().st_mtime
 
     def load(self):
         try:
@@ -61,7 +61,7 @@ class Blocklist(list):
         except IOError:
             with codecs.open(self.location, "w+", encoding="utf-8") as f:
                 blocklist = f.read()
-            log.warn("No blockfile found. Created one.")
+            log.warning("No blockfile found. Created one.")
 
         return [i for i in blocklist.split("\n") if i]
 
