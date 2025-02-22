@@ -79,7 +79,7 @@ class SpotifyDBusClient(object):
             path="/org/mpris/MediaPlayer2"
         )
 
-    def on_metadata_change(self, fun):
+    def on_metadata_and_playback_change(self, fun):
         def _playback_status_changed(
             interface_name: str,
             changed_properties: dict[str, str],
@@ -97,7 +97,7 @@ class SpotifyDBusClient(object):
                     return
             else:
                 metadata: dbus.types.Dictionary = changed_properties["Metadata"]
-            log.debug(f"metadata changed: interface={interface_name}, changed_properties={changed_properties}, invalidated_properties={invalidated_properties}")
+            # log.debug(f"metadata changed: interface={interface_name}, changed_properties={changed_properties}, invalidated_properties={invalidated_properties}")
             fun(metadata)
         self.on_property_change(_playback_status_changed)
 
