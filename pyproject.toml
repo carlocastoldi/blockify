@@ -1,6 +1,6 @@
 [project]
 name = "blockify"
-version = "4.0.0"
+version = "4.0.1a0"
 description = "Mute spotify advertisements"
 repository = "https://github.com/carlocastoldi/blockify"
 authors = [

@@ -1,3 +1,9 @@
+# Version v4.0.1a0
+This is a work in progress for the next release.
+## Enhancements
+## Bugs fixed
+## Dependency updates
+
 # Version v4.0.0
 ## Enhancements
  - removed GUI
