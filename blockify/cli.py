@@ -12,27 +12,19 @@ Options:
     --version         Show current version of blockify.
 """
 import logging
-import os
-import re
 import signal
-import subprocess
 import sys
-
-from blockify import util
-
-log = logging.getLogger("cli")
-
-from enum import Enum
-from dbus.mainloop.glib import DBusGMainLoop
 
 import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib
 
-from blockify import blocklist
-from blockify import dbusclient
+from enum import Enum
 
+from blockify import blocklist, dbusclient, util
+from blockify.muters import AlsaMuter, PulseMuter, SystemCommandNotFound
 
+log = logging.getLogger("cli")
 class MuteDetection(Enum):
     AUTOMATIC = 0
     FORCE_MUTE = 1
@@ -47,114 +39,63 @@ class Blockify(object):
         self._automute = util.CONFIG["general"]["automute"]
         self.autoplay = util.CONFIG["general"]["autoplay"]
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
-        self.pulse_unmuted_value = ""
         self.song_delimiter = " - "  # u" \u2013 "
         self.found = False
         self.current_song = ""
         self.current_song_artist = ""
         self.current_song_title = ""
-        self.previous_song = ""
         self.song_status = ""
         self.is_fully_muted = False
-        self.is_sink_muted = False
+
+        try:
+            self.muter = PulseMuter()
+            log.debug("Mute method is pulse sink.")
+        except SystemCommandNotFound as e:
+            log.info(f"No command '{e.command}' found. Falling back to system mute via ALSA.") #/pulse
+            try:
+                self.muter = AlsaMuter()
+            except SystemCommandNotFound as e2:
+                log.error(f"No command '{e2.command}' found. Exiting.")
+                sys.exit(-1)
 
         # DBusGMainLoop(set_as_default=True)
         self.main_loop = GLib.MainLoop()
-
         self.spotify = self.connect_to_spotify()
-        self.channels = self.initialize_channels()
-
-        self.initialize_mute_method()
-
-        self.initialize_pulse_unmuted_value()
-
         log.info("Blockify initialized.")
 
-    def is_localized_pulseaudio(self):
-        """Pulseaudio versions below 7.0 are localized."""
-        localized = False
-        try:
-            subprocess.check_call(["pulseaudio"])
-        except OSError:
-            log.info("Assuming system is using PipeWire")
-            return localized
-        try:
-            pulseaudio_version_string = subprocess.check_output("pulseaudio --version | awk '{print $2}'", shell=True)
-            pulseaudio_version = int(pulseaudio_version_string[0])
-            localized = pulseaudio_version < 7
-        except Exception as e:
-            log.error("Could not detect pulseaudio version: {}".format(e))
-
-        return localized
-
-    def initialize_pulse_unmuted_value(self):
-        """Set 'no' as self.pulse_unmuted_value and try to translate if necessary."""
-        unmuted_value = 'no'
-        if self.is_localized_pulseaudio():
-            try:
-                self.install_locale()
-                # Translate 'no' to the system locale.
-                unmuted_value = _(unmuted_value)
-            except (Exception):
-                log.debug("Could not install localization. If your system "
-                          "language is not english this *might* lead to unexpected "
-                          "mute behaviour. A possible fix is to replace the "
-                          "value of unmuted_value in blockify.py with your "
-                          "translation of 'no', e.g. 'tak' in polish.")
-
-        self.pulse_unmuted_value = unmuted_value
-
-    def initialize_mute_method(self):
-        """Determine if we can use sinks or have to use alsa."""
-        try:
-            devnull = open(os.devnull)
-            subprocess.check_output(["pactl", "list", "sink-inputs"], stderr=devnull)
-            self.mutemethod = self.pulsesink_mute
-            log.debug("Mute method is pulse sink.")
-        except (OSError, subprocess.CalledProcessError):
-            log.debug("Mute method is alsa or pulse without sinks.")
-            log.info("No pulse sinks found, falling back to system mute via alsa/pulse.")
-            self.mutemethod = self.alsa_mute
-
-    def install_locale(self):
-        import locale
-        import gettext
-
-        current_locale, encoding = locale.getdefaultlocale()
-        pulseaudio_domain = 'pulseaudio'
-        localedir = gettext.find(pulseaudio_domain, languages=[current_locale])
-        localedir = localedir[:localedir.find('locale/')] + 'locale'
-        locale = gettext.translation(pulseaudio_domain, localedir=localedir, languages=[current_locale])
-        locale.install()
-
-    def initialize_channels(self):
-        channel_list = ["Master"]
-        amixer_output = subprocess.check_output("amixer")
-        if "'Speaker',0" in amixer_output.decode("utf-8"):
-            channel_list.append("Speaker")
-        if "'Headphone',0" in amixer_output.decode("utf-8"):
-            channel_list.append("Headphone")
-
-        return channel_list
+    def toggle_mute(self, mode=MuteDetection.AUTOMATIC):
+        self.muter.update()
+        if self.muter.is_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
+            log.info(f"Forcing unmute {self.muter.__class__.__name__}.")
+            self.muter.unmute()
+        elif not self.muter.is_muted and mode == MuteDetection.FORCE_MUTE:
+            log.info(f"Muting: {self.current_song}.")
+            self.muter.mute()
+        elif self.muter.is_muted and mode == MuteDetection.AUTOMATIC:
+            log.info(f"Unmuting {self.muter.__class__.__name__}.")
+            self.muter.unmute()
 
     def connect_to_spotify(self):
         try:
-            return dbusclient.DBusClient()
+            return dbusclient.DBusClient() # blocking call
         except KeyboardInterrupt as e:
             self.stop()
             # sys.exit(0)
         except Exception as e:
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
-            # self.main_loop.quit()
+            self.main_loop.quit()
             sys.exit(-1)
 
     def start(self):
+        def on_spotify_update(metadata=None):
+            logging.info(self.spotify.get_song())
+            self.found = self.find_ad(metadata)
+
         self.bind_signals()
         # Force unmute to properly initialize unmuted state
 
         self.toggle_mute(MuteDetection.FORCE_UNMUTE)
-        self.update()
-        self.spotify.on_metadata_change(lambda metadata: self.update(metadata))
+        self.spotify.on_metadata_change(on_spotify_update)
 
         if self.autoplay:
             # Delay autoplayback until self.spotify_is_playing was called at least once.
@@ -174,18 +115,9 @@ class Blockify(object):
     def spotify_is_playing(self):
         return self.song_status == "Playing"
 
-    def update(self, metadata=None):
-        # Determine if a commercial is running and act accordingly.
-        logging.info(self.spotify.get_song())
-        self.found = self.find_ad(metadata)
-
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
         self.update_current_song_info(metadata)
-
-        # Manual control is enabled so we exit here.
-        if not self.automute:
-            return False
 
         # if True:
         if self.autodetect and self.current_song and self.current_song_is_ad():
@@ -251,100 +183,6 @@ class Blockify(object):
             else:
                 log.error("Not found in blocklist or block pattern too short.")
 
-    def toggle_mute(self, mode=MuteDetection.AUTOMATIC):
-        self.mutemethod(mode)
-
-    def is_muted(self):
-        for channel in self.channels:
-            try:
-                output = subprocess.check_output(["amixer", "get", channel])
-                if "[off]" in output.decode("utf-8"):
-                    return True
-            except subprocess.CalledProcessError:
-                pass
-        return False
-
-    def get_state(self, mode):
-        muted = self.is_muted()
-        self.is_fully_muted = muted
-
-        state = None
-
-        if muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
-            state = "unmute"
-        elif muted and mode == MuteDetection.AUTOMATIC:
-            state = "unmute"
-            log.info("Unmuting.")
-        elif not muted and mode == MuteDetection.FORCE_MUTE:
-            state = "mute"
-            log.info("Muting {}.".format(self.current_song))
-
-        return state
-
-    def alsa_mute(self, mode):
-        """Mute method for systems without Pulseaudio. Mutes sound system-wide."""
-        state = self.get_state(mode)
-        if not state:
-            return
-
-        self.update_audio_channel_state(["amixer", "-q", "set"], state)
-
-    def pulse_mute(self, mode):
-        """Used if pulseaudio is installed but no sinks are found. System-wide."""
-        state = self.get_state(mode)
-        if not state:
-            return
-
-        self.update_audio_channel_state(["amixer", "-qD", "pulse", "set"], state)
-
-    def update_audio_channel_state(self, command, state):
-        for channel in self.channels:
-            try:
-                subprocess.Popen(command + [channel, state])
-            except subprocess.CalledProcessError:
-                pass
-
-    def extract_pulse_sink_status(self, pactl_out):
-        sink_status = ("", "", "")  # index, playback_status, muted_value
-        # Match sink id, muted values and media.name from output of "pactl list sink-inputs"
-        pattern = re.compile(r"(?: Sink Input #|Corked|Mute|media\.name).*?(\w+)")
-        # Put valid spotify PIDs in a list
-        output = pactl_out.decode("utf-8")
-
-        spotify_sink_list = [" Sink Input #" + i for i in output.split("Sink Input #") if "spotify" in i]
-
-        if len(spotify_sink_list):
-            sink_infos = [pattern.findall(sink) for sink in spotify_sink_list]
-            spotify_status = [sink_status[:3] for sink_status in sink_infos if sink_status[3].lower() == "spotify"]
-            return spotify_status
-
-        return []
-
-    def pulsesink_mute(self, mode):
-        """Finds spotify's audio sink and toggles its mute state."""
-        try:
-            pactl_out = subprocess.check_output(["pactl", "list", "sink-inputs"])
-        except subprocess.CalledProcessError:
-            log.error("Spotify sink not found. Is Pulse running? Resorting to pulse amixer as mute method.")
-            self.mutemethod = self.pulse_mute  # Fall back to amixer mute.
-            return
-
-        for index, playback_state, muted_value in self.extract_pulse_sink_status(pactl_out):
-
-            self.song_status = "Playing" if playback_state == self.pulse_unmuted_value else "Paused"
-            self.is_sink_muted = False if muted_value == self.pulse_unmuted_value else True
-
-            if index:
-                if self.is_sink_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
-                    log.info(f"Forcing unmute Sink-Input#{index}")
-                    subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
-                elif not self.is_sink_muted and mode == MuteDetection.FORCE_MUTE:
-                    log.info(f"Muting Sink-Input#{index}: {self.current_song}.")
-                    subprocess.call(["pactl", "set-sink-input-mute", index, "yes"])
-                elif self.is_sink_muted and mode == MuteDetection.AUTOMATIC:
-                    log.info(f"Unmuting Sink-Input#{index}.")
-                    subprocess.call(["pactl", "set-sink-input-mute", index, "no"])
-
     def signal_stop_received(self, sig, hdl):
         log.debug("{} received. Exiting safely.".format(sig))
         self.stop()
@@ -390,15 +228,6 @@ class Blockify(object):
             self.unblock_current()
         else:
             self.block_current()
-
-    @property
-    def automute(self):
-        return self._automute
-
-    @automute.setter
-    def automute(self, boolean):
-        log.debug("Automute: {}.".format(boolean))
-        self._automute = boolean
 
     @property
     def autodetect(self):
