@@ -105,7 +105,7 @@ class Blockify(object):
             )
 
     def start(self):
-        def on_spotify_update(metadata=None):
+        def check_spotify(metadata=None):
             # NOTE: if autoplay is active and spotify was restarted, then this is executed twice in a row.
             log.info(self.spotify.get_song())
             self.find_ad(metadata)
@@ -114,7 +114,7 @@ class Blockify(object):
         # Force unmute to properly initialize unmuted state
 
         self.find_ad() # don't wait for a metadata change to check for ads for the first time
-        self.spotify.on_metadata_change(on_spotify_update)
+        self.spotify.on_metadata_and_playback_change(check_spotify)
 
         if self.autoplay:
             GLib.timeout_add(100, self.start_autoplay)
