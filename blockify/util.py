@@ -87,16 +87,10 @@ def init_config_dir():
 def default_options() -> dict:
     return {
         "general": {
-            "autodetect": True,
-            "automute": True,
             "autoplay": True,
             "substring_search": False,
-            "start_spotify": True,
-            "detach_spotify": False,
-            "use_window_title": True
         },
         "cli": {
-            "update_interval": 350,
             "unmute_delay": 700
         },
     }

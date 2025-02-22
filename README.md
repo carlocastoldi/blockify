@@ -58,37 +58,61 @@ Blocklist entries are case-sensitive and greedy, e.g. the entry `Blood` would ma
 
 ### CLI
 
-Blockify works as a CLI/daemon that you can start with `blockify` and stays in the background with minimal resource usage.
+Blockify works as a CLI/daemon that you can start with `blockify` and stays in the background with minimal resource usage.\
 `blockify -h` will print out a help text with available options.
 
 ### Controls/Actions
 
 Blockify accepts several signals:
 * SIGINT(9)/SIGTERM(15): Exit cleanly.
-* SIGUSR2(10): Toggle block state of current song.
-* SIGUSR1(12): Block current song.
-* SIGRTMIN+3(37): Unblock current song.
+* SIGUSR2(10): Toggle mute state of current song.
+* SIGUSR1(12): Block current song, and adds it to `blocklist.txt`.
+* SIGRTMIN(34): Unblock current song, and removes it from `blocklist.txt`.
 
-To easily use these signals add the following function to your .bashrc:
+To easily use these signals add the following function to your `.bashrc` or `.zshrc`.\
+Then send signals to blockify via `bb`, for example `bb b` adds the current song to the blocklist file and mutes Spotify.
+
 ```bash
+#!/usr/bin/sh
 bb() {
     local signal
     case "$1" in
-        '')  blockify-dbus get 2>/dev/null && return 0;;
+        '') return 0;;
         ex|exit)
-            signal='TERM';;     # Exit
+            signal='TERM';;
         t|toggle)
-            signal='USR1';;     # Toggle block song
+            signal='USR1';;
         b|block)
-            signal='USR2';;     # Block
+            signal='USR2';;
         u|unblock)
-            signal='RTMIN+3';;  # Unblock
-        *) echo "Usage: bb ( t[oggle] | b[lock] | u[nblock] )" && return 0;;
+            signal='RTMIN';;
+        *)
+            echo "Usage: bb ( t[oggle] | b[lock] | u[nblock] )" && return 0;;
     esac
     pkill --signal "$signal" -f 'python.*blockify'
 }
 ```
-Then use it via e.g. `bb` to get current song info or `bb t` to toggle playback.
+
+```zsh
+#!/usr/bin/zsh
+bb() {
+    local signal
+    case "$1" in
+        '') return 0;;
+        ex|exit)
+            signal='TERM';;
+        t|toggle)
+            signal='USR1';;
+        b|block)
+            signal='USR2';;
+        u|unblock)
+            signal='RTMIN';;
+        *)
+            echo "Usage: bb ( t[oggle] | b[lock] | u[nblock] )" && return 0;;
+    esac
+    pkill --signal "$signal" -f 'python.*blockify'
+}
+```
 
 #### Configuration
 

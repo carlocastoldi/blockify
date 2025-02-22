@@ -31,10 +31,12 @@ class AlsaMuter():
     def mute(self):
         """Mute method for systems without Pulseaudio. Mutes sound system-wide."""
         self._update_audio_channel_state(["amixer", "-q", "set"], "mute")
+        self.is_muted = True
 
     def unmute(self):
         """Mute method for systems without Pulseaudio. Unmutes sound system-wide."""
         self._update_audio_channel_state(["amixer", "-q", "set"], "unmute")
+        self.is_muted = False
 
     def _initialize_channels(self):
         channel_list = ["Master"]
@@ -68,10 +70,12 @@ class PulseMuter():
     def mute(self):
         for spotify_sink in self.sinks:
             spotify_sink.mute()
+        self.is_muted = True
 
     def unmute(self):
         for spotify_sink in self.sinks:
             spotify_sink.unmute()
+        self.is_muted = False
 
     # def is_muted_all(self):
     #     for channel in self.channels:
