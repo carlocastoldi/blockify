@@ -53,6 +53,7 @@ class DBusClient(object):
         # else:
         #     log.warning("SPOTIFY PATH:"+self.spotify_path)
 
+        log.info("Connecting to spotify...")
         not_connected = True
         while not_connected:
             try:
@@ -64,6 +65,7 @@ class DBusClient(object):
             except Exception as e:
                 time.sleep(2)
                 pass #log.error("Could not connect to Spotify dbus session: {}".format(e))
+        log.info("Connection established!")
 
     def on_property_change(self, fun):
         self.session_bus.add_signal_receiver(
