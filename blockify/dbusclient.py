@@ -107,7 +107,7 @@ class SpotifyDBusClient(object):
         try:
             prop = self.properties.Get(self.player_path, key)
         except dbus.exceptions.DBusException as e:
-            log.error("Failed to get DBus property: {}".format(e))
+            log.error(f"Failed to get DBus property: {e}")
 
         return prop
 
@@ -116,68 +116,68 @@ class SpotifyDBusClient(object):
         try:
             self.properties.Set(self.player_path, key, value)
         except Exception as e:
-            log.warning("Cannot Set Property: {}".format(e))
+            log.error(f"Cannot Set Property: {e}")
 
     def playpause(self):
         """Toggles the current song between Play and Pause."""
         try:
             self.player.PlayPause()
         except Exception as e:
-            log.warning("Cannot Play/Pause: {}".format(e))
+            log.error(f"Cannot Play/Pause: {e}")
 
     def play(self):
         """Tries to play the current title."""
         try:
             self.player.Play()
         except Exception as e:
-            log.warning("Cannot Play: {}".format(e))
+            log.error(f"Cannot Play: {e}")
 
     def pause(self):
         """Tries to pause the current title."""
         try:
             self.player.Pause()
         except Exception as e:
-            log.warning("Cannot Pause: {}".format(e))
+            log.error(f"Cannot Pause: {e}")
 
     def stop(self):
         """Tries to stop playback. PlayPause is probably preferable."""
         try:
             self.player.Stop()
         except Exception as e:
-            log.warning("Cannot Stop playback: {}".format(e))
+            log.error(f"Cannot Stop playback: {e}")
 
     def next(self):
         """Tries to skip to next song."""
         try:
             self.player.Next()
         except Exception as e:
-            log.warning("Cannot Go Next: {}".format(e))
+            log.error(f"Cannot Go Next: {e}")
 
     def prev(self):
         """Tries to go back to last song."""
         try:
             self.player.Previous()
         except Exception as e:
-            log.warning("Cannot Go Previous: {}".format(e))
+            log.error(f"Cannot Go Previous: {e}")
 
     def set_position(self, track, position):
         try:
             self.player.SetPosition(track, position)
         except Exception as e:
-            log.warning("Cannot Set Position: {}".format(e))
+            log.error(f"Cannot Set Position: {e}")
 
     def open_uri(self, uri):
         try:
             self.player.OpenUri(uri)
         except Exception as e:
-            log.warning("Cannot Open URI: {}".format(e))
+            log.error(f"Cannot Open URI: {e}")
 
     def seek(self, seconds):
         """Skips n seconds forward."""
         try:
             self.player.Seek(seconds)
         except Exception as e:
-            log.warning("Cannot Seek: {}".format(e))
+            log.error(f"Cannot Seek: {e}")
 
     def _get_metadata(self) -> dict:
         """Get a dictionary with all metadata"""
@@ -191,7 +191,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             length = int(metadata["mpris:length"] / 1000000)
         except Exception as e:
-            log.warning("Cannot get song length: {}".format(e))
+            log.error(f"Cannot get song length: {e}")
 
         return length
 
@@ -203,7 +203,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             art_url = str(metadata["mpris:artUrl"])
         except Exception as e:
-            log.error("Cannot fetch album cover url: {}".format(e))
+            log.error(f"Cannot fetch album cover url: {e}")
 
         return art_url
 
@@ -215,7 +215,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             spotify_url = str(metadata["xesam:url"])
         except Exception as e:
-            log.error("Cannot fetch spotify url: {}".format(e))
+            log.error(f"Cannot fetch spotify url: {e}")
 
         return spotify_url
 
@@ -225,7 +225,7 @@ class SpotifyDBusClient(object):
         try:
             status = str(self.get_property("PlaybackStatus"))
         except Exception as e:
-            log.warning("Cannot get PlaybackStatus: {}".format(e))
+            log.error(f"Cannot get PlaybackStatus: {e}")
 
         return status
 
@@ -234,7 +234,7 @@ class SpotifyDBusClient(object):
         title = self.get_song_title()
         album = self.get_song_album()
 
-        return "{} - {} [{}]".format(artist, title, album)
+        return f"{artist} - {title} [{album}]"
 
     def get_song_title(self, metadata=None):
         """Gets title of current song from metadata"""
@@ -244,7 +244,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             title = str(metadata["xesam:title"])
         except Exception as e:
-            log.warning("Cannot get song title: {}".format(e))
+            log.error(f"Cannot get song title: {e}")
 
         return title
 
@@ -256,7 +256,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             album = str(metadata["xesam:album"])
         except Exception as e:
-            log.warning("Cannot get song album: {}".format(e))
+            log.error(f"Cannot get song album: {e}")
 
         return album
 
@@ -268,7 +268,7 @@ class SpotifyDBusClient(object):
                 metadata = self._get_metadata()
             artist = str(metadata["xesam:artist"][0])
         except Exception as e:
-            log.warning("Cannot get song artist: {}".format(e))
+            log.error(f"Cannot get song artist: {e}")
 
         return artist
 
@@ -292,7 +292,7 @@ def print_all(dbus_client):
             else:
                 print("{0}\t= {1}".format(d, metadata[k]))
     except AttributeError as e:
-        log.error("Could not get properties: {}".format(e))
+        log.error(f"Could not get properties: {e}")
 
 
 def print_song(dbus_client):
@@ -300,7 +300,7 @@ def print_song(dbus_client):
     m, s = divmod(length, 60)
     rating = dbus_client.get_metadata()["xesam:autoRating"]
     song = dbus_client.get_song()
-    print("{}, {}m{}s, {}".format(song, m, s, rating))
+    print(f"{song}, {m}m{s}s, {rating}")
 
 
 def wrap_action(action, *args):

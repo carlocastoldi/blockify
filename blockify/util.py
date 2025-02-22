@@ -57,7 +57,7 @@ def init_logger(logpath: Path|str=None, loglevel=0, quiet=False):
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
         log.debug("Added logging console handler.")
-        log.info("Loglevel is {} (10=DEBUG, 20=INFO, 30=WARN).".format(levels[loglevel]))
+        log.info(f"Loglevel is {levels[loglevel]} (10=DEBUG, 20=INFO, 30=WARN).")
 
         # Redirect all stderr to a logger so that we can capture it in the logfile.
         stderr_logger = logging.getLogger("stderr")
@@ -69,7 +69,7 @@ def init_logger(logpath: Path|str=None, loglevel=0, quiet=False):
             file_handler = logging.FileHandler(logfile)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
-            log.debug("Added logging file handler: {}.".format(logfile))
+            log.debug(f"Added logging file handler: {logfile}.")
         except IOError:
             log.error("Could not attach file handler.")
 
@@ -103,7 +103,7 @@ def load_options():
     try:
         config.read(CONFIG_FILE)
     except Exception as e:
-        log.warning("Could not read config file: {}. Using default options.".format(e))
+        log.error(f"Could not read config file: {e}. Using default options.")
     else:
         for section_name, section_value in options.items():
             for option_name, option_value in section_value.items():
@@ -126,8 +126,7 @@ def read_option(config, section_name, option_name, option_value, default_option_
         else:
             option = config.get(section_name, option_name)
     except Exception:
-        log.warning("Could not parse option %s for section %s. Using default value %s.", option_name, section_name,
-                 default_option_value)
+        log.error(f"Could not parse option {option_name} for section {section_name}. Using default value {default_option_value}.")
 
     return option
 
@@ -144,7 +143,7 @@ def save_options(config_file: Path, options: dict):
     with codecs.open(config_file, "w", encoding="utf-8") as f:
         config.write(f)
 
-    log.info("Configuration written to {}.".format(config_file))
+    log.info(f"Configuration written to {config_file}.")
 
 
 def initialize(args):
