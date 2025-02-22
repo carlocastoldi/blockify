@@ -1,15 +1,19 @@
 # Version v4.0.0-SNAPSHOT
 This is a work in progress for the next major release.
 ## Enhancements
- - update to GTK4.
- - CLI awaits for signals from spotify instead of polling.
+ - removed GUI
+ - removed suppot for an interlude player
+ - rewritten CLI interface
+ - rewritten Pulse and ALSA audio muters
+ - now CLI awaits for MPRIS signals from Spotify instead of polling
+ - improved overall error handling
+ - moved to Poetry as build system
 ## Bugs fixed
  - fix podcast episodes being muted.
  - fix PipeWire not being supported.
-## API changes
- - removed `cli.check_for_blockify_process` and `start_spotify_if_necessary` (and relative options).
- - removed `cli.current_song_from_window_title` (and relative option "use_window_title")
 ## Dependency updates
+ - removed dependencies on gstreamer and GTK
+ - removed dependency on libwnck and wmctrl
 
 # Old changelog
 
