@@ -25,10 +25,6 @@ from blockify import blocklist, dbusclient, util
 from blockify.muters import AlsaMuter, PulseMuter, SystemCommandNotFound
 
 log = logging.getLogger("cli")
-class MuteDetection(Enum):
-    AUTOMATIC = 0
-    FORCE_MUTE = 1
-    FORCE_UNMUTE = 2
 
 class Blockify(object):
     def __init__(self, blocklist: blocklist.Blocklist):
@@ -37,11 +33,8 @@ class Blockify(object):
 
         self.autoplay = util.CONFIG["general"]["autoplay"]
         self.unmute_delay = util.CONFIG["cli"]["unmute_delay"]
-        self.song_delimiter = " - "  # u" \u2013 "
         self.found = False
         self.current_song = ""
-        self.current_song_artist = ""
-        self.current_song_title = ""
         self.song_status = ""
         self.is_fully_muted = False
 
@@ -61,17 +54,27 @@ class Blockify(object):
         self.spotify = self.connect_to_spotify()
         log.info("Blockify initialized.")
 
-    def toggle_mute(self, mode=MuteDetection.AUTOMATIC):
+    def mute(self):
         self.muter.update()
-        if self.muter.is_muted and (mode == MuteDetection.FORCE_UNMUTE or not self.current_song):
-            log.info(f"Forcing unmute {self.muter.__class__.__name__}.")
-            self.muter.unmute()
-        elif not self.muter.is_muted and mode == MuteDetection.FORCE_MUTE:
-            log.info(f"Muting: {self.current_song}.")
-            self.muter.mute()
-        elif self.muter.is_muted and mode == MuteDetection.AUTOMATIC:
+        log.info(f"Muting {self.muter.__class__.__name__}: {self.current_song}.")
+        # if not self.muter.is_muted:
+        self.muter.mute()
+
+    def unmute(self):
+        self.muter.update()
+        log.info(f"Unmuting {self.muter.__class__.__name__}.")
+        # if self.muter.is_muted:
+        self.muter.unmute()
+
+    def toggle_block(self):
+        """Block/unblock the current song."""
+        self.muter.update()
+        if self.muter.is_muted:
             log.info(f"Unmuting {self.muter.__class__.__name__}.")
             self.muter.unmute()
+        else:
+            log.info(f"Muting {self.muter.__class__.__name__}: {self.current_song}.")
+            self.muter.mute()
 
     def connect_to_spotify(self):
         try:
@@ -92,7 +95,7 @@ class Blockify(object):
         self.bind_signals()
         # Force unmute to properly initialize unmuted state
 
-        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
+        self.find_ad() # don't wait for a metadata change to check for ads for the first time
         self.spotify.on_metadata_change(on_spotify_update)
 
         if self.autoplay:
@@ -115,11 +118,17 @@ class Blockify(object):
 
     def find_ad(self, metadata=None):
         """Checks for ads and mutes accordingly."""
-        self.update_current_song_info(metadata)
+
+        artist = self.spotify.get_song_artist(metadata)
+        title = self.spotify.get_song_title(metadata)
+        previous_song = self.current_song
+        self.current_song = f"{artist} - {title}"
+        if self.current_song == previous_song:
+            return self.found
 
         # if True:
-        if self.current_song and self.current_song_is_ad():
-            self.toggle_mute(MuteDetection.FORCE_MUTE)
+        if self.current_song_is_ad(artist, title, self.spotify.get_spotify_url(metadata)):
+            self.mute()
             return True
 
         # Check if the blockfile has changed.
@@ -134,7 +143,7 @@ class Blockify(object):
             self.blocklist.__init__()
 
         if self.blocklist.find(self.current_song):
-            self.toggle_mute(MuteDetection.FORCE_MUTE)
+            self.mute()
             return True
 
         # Unmute with a certain delay to avoid the last second
@@ -145,52 +154,57 @@ class Blockify(object):
 
     def unmute_with_delay(self):
         if not self.found:
-            self.toggle_mute(MuteDetection.AUTOMATIC)
+            self.unmute()
         return False
 
     # Audio ads typically have no artist information (via DBus) and/or "/ad/" in their spotify url.
-    def current_song_is_ad(self):
-
-        missing_artist = self.current_song_title and not self.current_song_artist
-        has_ad_url = "/ad/" in self.spotify.get_spotify_url()
-        has_podcast_url = "/episode/" in self.spotify.get_spotify_url()
+    def current_song_is_ad(self, artist: str, title: str, spotify_url):
+        missing_artist = title and not artist
+        has_ad_url = "/ad/" in spotify_url
+        has_podcast_url = "/episode/" in spotify_url
 
         # log.debug("missing_artist: {0}, has_ad_url: {1}, title_mismatch: {2}".format(missing_artist, has_ad_url,
         #                                                                             title_mismatch))
 
-        return (missing_artist and not has_podcast_url) or has_ad_url
-
-    def update_current_song_info(self, metadata=None):
-        self.current_song_artist = self.spotify.get_song_artist(metadata)
-        self.current_song_title = self.spotify.get_song_title(metadata)
-        self.current_song = self.current_song_artist + self.song_delimiter + self.current_song_title
+        return has_ad_url or (missing_artist and not has_podcast_url)
 
     def block_current(self):
-        if self.current_song:
-            self.blocklist.append(self.current_song)
+        self.blocklist.append(self.current_song)
 
     def unblock_current(self):
-        if self.current_song:
-            song = self.blocklist.find(self.current_song)
-            if song:
-                self.blocklist.remove(song)
-            else:
-                log.error("Not found in blocklist or block pattern too short.")
+        song = self.blocklist.find(self.current_song)
+        if song:
+            self.blocklist.remove(song)
+        else:
+            log.error("Not found in blocklist or block pattern too short.")
+
+    def prepare_stop(self):
+        log.info("Exiting safely. Bye.")
+        # Save the list only if it changed during runtime.
+        if self.blocklist != self.orglist:
+            self.blocklist.save()
+        # Unmute before exiting.
+        self.unmute()
+
+    def stop(self):
+        self.prepare_stop()
+        self.main_loop.quit()
+        sys.exit()
 
     def signal_stop_received(self, sig, hdl):
-        log.debug("{} received. Exiting safely.".format(sig))
+        log.debug(f"{sig} received. Exiting safely.")
         self.stop()
 
     def signal_block_received(self, sig, hdl):
-        log.debug("Signal {} received. Blocking current song.".format(sig))
+        log.debug(f"Signal {sig} received. Blocking current song: {self.current_song}")
         self.block_current()
 
     def signal_unblock_received(self, sig, hdl):
-        log.debug("Signal {} received. Unblocking current song.".format(sig))
+        log.debug(f"Signal {sig} received. Unblocking current song: {self.current_song}")
         self.unblock_current()
 
     def signal_toggle_block_received(self, sig, hdl):
-        log.debug("Signal {} received. Toggling blocked state.".format(sig))
+        log.debug(f"Signal {sig} received. Toggling blocked state.")
         self.toggle_block()
 
     def bind_signals(self):
@@ -201,26 +215,6 @@ class Blockify(object):
         signal.signal(signal.SIGUSR1, self.signal_block_received)  # 10
         signal.signal(signal.SIGUSR2, self.signal_unblock_received)  # 12
         signal.signal(signal.SIGRTMIN + 3, self.signal_toggle_block_received)  # 37
-
-    def prepare_stop(self):
-        log.info("Exiting safely. Bye.")
-        # Save the list only if it changed during runtime.
-        if self.blocklist != self.orglist:
-            self.blocklist.save()
-        # Unmute before exiting.
-        self.toggle_mute(MuteDetection.FORCE_UNMUTE)
-
-    def stop(self):
-        self.prepare_stop()
-        self.main_loop.quit()
-        sys.exit()
-
-    def toggle_block(self):
-        """Block/unblock the current song."""
-        if self.found:
-            self.unblock_current()
-        else:
-            self.block_current()
 
 
 def initialize(doc=__doc__):
