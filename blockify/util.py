@@ -4,6 +4,8 @@ import logging
 import os
 import sys
 
+from pathlib import Path
+
 log = logging.getLogger("util")
 
 try:
@@ -13,11 +15,12 @@ except ImportError:
 
 VERSION = "3.6.3"
 CONFIG = None
-CONFIG_DIR = os.path.expanduser("~/.config/blockify")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "blockify.ini")
-BLOCKLIST_FILE = os.path.join(CONFIG_DIR, "blocklist.txt")
-THUMBNAIL_DIR = os.path.join(CONFIG_DIR, "thumbnails")
-
+if "XDG_CONFIG_HOME" in os.environ:
+    CONFIG_DIR = Path(os.environ["XDG_CONFIG_HOME"])/"blockify"
+else:
+    CONFIG_DIR = Path.home()/".config"/"blockify"
+CONFIG_FILE = CONFIG_DIR/"blockify.ini"
+BLOCKLIST_FILE = CONFIG_DIR/"blocklist.txt"
 
 class StreamToLogger(object):
     """
@@ -34,7 +37,7 @@ class StreamToLogger(object):
             self.logger.log(self.log_level, line.rstrip())
 
 
-def init_logger(logpath=None, loglevel=0, quiet=False):
+def init_logger(logpath: Path|str=None, loglevel=0, quiet=False):
     """Initializes the logging module."""
     logger = logging.getLogger()
 
@@ -61,7 +64,7 @@ def init_logger(logpath=None, loglevel=0, quiet=False):
         sys.stderr = stream_logger
     if logpath:
         try:
-            logfile = os.path.abspath(logpath)
+            logfile = Path(logpath).resolve()
             file_handler = logging.FileHandler(logfile)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
@@ -72,19 +75,15 @@ def init_logger(logpath=None, loglevel=0, quiet=False):
 
 def init_config_dir():
     """Determine if a config dir for blockify exists and if not, create it."""
-    if not os.path.isdir(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR)
+    if not CONFIG_DIR.exists():
+        CONFIG_DIR.mkdir(parents=True, exist_ok=False)
         log.info("Created config directory %s.", CONFIG_DIR)
 
-    if not os.path.isdir(THUMBNAIL_DIR):
-        os.makedirs(THUMBNAIL_DIR)
-        log.info("Created thumbnail directory %s.", THUMBNAIL_DIR)
-
-    if not os.path.isfile(CONFIG_FILE):
-        save_options(CONFIG_FILE, get_default_options())
+    if not CONFIG_FILE.is_file():
+        save_options(CONFIG_FILE, default_options())
 
 
-def get_default_options():
+def default_options() -> dict:
     return {
         "general": {
             "autodetect": True,
@@ -104,12 +103,12 @@ def get_default_options():
 
 def load_options():
     log.info("Loading configuration.")
-    options = get_default_options()
+    options = default_options()
     config = configparser.ConfigParser()
     try:
         config.read(CONFIG_FILE)
     except Exception as e:
-        log.warn("Could not read config file: {}. Using default options.".format(e))
+        log.warning("Could not read config file: {}. Using default options.".format(e))
     else:
         for section_name, section_value in options.items():
             for option_name, option_value in section_value.items():
@@ -132,13 +131,13 @@ def read_option(config, section_name, option_name, option_value, default_option_
         else:
             option = config.get(section_name, option_name)
     except Exception:
-        log.warn("Could not parse option %s for section %s. Using default value %s.", option_name, section_name,
+        log.warning("Could not parse option %s for section %s. Using default value %s.", option_name, section_name,
                  default_option_value)
 
     return option
 
 
-def save_options(config_file, options):
+def save_options(config_file: Path, options: dict):
     config = configparser.ConfigParser()
     # Write out the sections in this order. Using options keys would be unpredictable.
     sections = ["general", "cli"]

@@ -112,68 +112,68 @@ class DBusClient(object):
             self.properties.Set(self.player_path, key, value)
         except Exception as e:
             self.connect_to_spotify_dbus(None)
-            log.warn("Cannot Set Property: {}".format(e))
+            log.warning("Cannot Set Property: {}".format(e))
 
     def playpause(self):
         """Toggles the current song between Play and Pause."""
         try:
             self.player.PlayPause()
         except Exception as e:
-            log.warn("Cannot Play/Pause: {}".format(e))
+            log.warning("Cannot Play/Pause: {}".format(e))
 
     def play(self):
         """Tries to play the current title."""
         try:
             self.player.Play()
         except Exception as e:
-            log.warn("Cannot Play: {}".format(e))
+            log.warning("Cannot Play: {}".format(e))
 
     def pause(self):
         """Tries to pause the current title."""
         try:
             self.player.Pause()
         except Exception as e:
-            log.warn("Cannot Pause: {}".format(e))
+            log.warning("Cannot Pause: {}".format(e))
 
     def stop(self):
         """Tries to stop playback. PlayPause is probably preferable."""
         try:
             self.player.Stop()
         except Exception as e:
-            log.warn("Cannot Stop playback: {}".format(e))
+            log.warning("Cannot Stop playback: {}".format(e))
 
     def next(self):
         """Tries to skip to next song."""
         try:
             self.player.Next()
         except Exception as e:
-            log.warn("Cannot Go Next: {}".format(e))
+            log.warning("Cannot Go Next: {}".format(e))
 
     def prev(self):
         """Tries to go back to last song."""
         try:
             self.player.Previous()
         except Exception as e:
-            log.warn("Cannot Go Previous: {}".format(e))
+            log.warning("Cannot Go Previous: {}".format(e))
 
     def set_position(self, track, position):
         try:
             self.player.SetPosition(track, position)
         except Exception as e:
-            log.warn("Cannot Set Position: {}".format(e))
+            log.warning("Cannot Set Position: {}".format(e))
 
     def open_uri(self, uri):
         try:
             self.player.OpenUri(uri)
         except Exception as e:
-            log.warn("Cannot Open URI: {}".format(e))
+            log.warning("Cannot Open URI: {}".format(e))
 
     def seek(self, seconds):
         """Skips n seconds forward."""
         try:
             self.player.Seek(seconds)
         except Exception as e:
-            log.warn("Cannot Seek: {}".format(e))
+            log.warning("Cannot Seek: {}".format(e))
 
     def get_song_length(self, metadata=None):
         """Gets the length of current song from metadata (in seconds)."""
@@ -183,7 +183,7 @@ class DBusClient(object):
                 metadata = self.get_property("Metadata")
             length = int(metadata["mpris:length"] / 1000000)
         except Exception as e:
-            log.warn("Cannot get song length: {}".format(e))
+            log.warning("Cannot get song length: {}".format(e))
 
         return length
 
@@ -217,7 +217,7 @@ class DBusClient(object):
         try:
             status = str(self.get_property("PlaybackStatus"))
         except Exception as e:
-            log.warn("Cannot get PlaybackStatus: {}".format(e))
+            log.warning("Cannot get PlaybackStatus: {}".format(e))
 
         return status
 
@@ -236,7 +236,7 @@ class DBusClient(object):
                 metadata = self.get_property("Metadata")
             title = str(metadata["xesam:title"])
         except Exception as e:
-            log.warn("Cannot get song title: {}".format(e))
+            log.warning("Cannot get song title: {}".format(e))
 
         return title
 
@@ -248,7 +248,7 @@ class DBusClient(object):
                 metadata = self.get_property("Metadata")
             album = str(metadata["xesam:album"])
         except Exception as e:
-            log.warn("Cannot get song album: {}".format(e))
+            log.warning("Cannot get song album: {}".format(e))
 
         return album
 
@@ -260,7 +260,7 @@ class DBusClient(object):
                 metadata = self.get_property("Metadata")
             artist = str(metadata["xesam:artist"][0])
         except Exception as e:
-            log.warn("Cannot get song artist: {}".format(e))
+            log.warning("Cannot get song artist: {}".format(e))
 
         return artist
 
