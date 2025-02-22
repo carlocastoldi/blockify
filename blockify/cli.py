@@ -54,20 +54,21 @@ class Blockify(object):
         log.info("Blockify initialized.")
 
     def mute(self):
-        log.warning(f"BLOCKING: {self.blocking} - MUTED: {self.muter.is_muted}")
+        log.debug(f"mute(): blocking={self.blocking} muter={self.muter.is_muted}")
         if self.blocking and self.muter.is_muted:
             return
         self.muter.update()
-        log.info(f"Muting {self.muter.__class__.__name__}: {self.current_song}.")
+        log.debug(f"Muting {self.muter.__class__.__name__}: {self.current_song}.")
         self.muter.mute()
 
     def unmute(self):
+        log.debug(f"unmute(): blocking={self.blocking} muter={self.muter.is_muted}")
         if not self.blocking and not self.muter.is_muted:
             # if it's not blocking (i.e. ad or blocklist) but it's still muted (it was toggled),
             # we force the unmute
             return
         self.muter.update()
-        log.info(f"Unmuting {self.muter.__class__.__name__}.")
+        log.debug(f"Unmuting {self.muter.__class__.__name__}.")
         self.muter.unmute()
 
     def toggle(self):
@@ -75,10 +76,10 @@ class Blockify(object):
         # ignores self.blocking
         self.muter.update()
         if self.muter.is_muted:
-            log.info(f"Unmuting {self.muter.__class__.__name__}.")
+            log.debug(f"Toggling (unmute) {self.muter.__class__.__name__}.")
             self.muter.unmute()
         else:
-            log.info(f"Muting {self.muter.__class__.__name__}: {self.current_song}.")
+            log.debug(f"Toggling (mute) {self.muter.__class__.__name__}: {self.current_song}.")
             self.muter.mute()
 
     def connect_to_spotify(self):
@@ -100,7 +101,7 @@ class Blockify(object):
 
     def reconnect_if_closed(self, xdg_bus):
             def reconnect(bus_name, old_owner, new_owner):
-                log.info("Lost connection to spotify.")
+                log.warning("Lost connection to spotify.")
                 if self.establish_spotify_connection():
                     self.start_autoplay()
             xdg_bus.connect_to_signal(
@@ -114,7 +115,7 @@ class Blockify(object):
     def start(self):
         def check_spotify_on_change(metadata):
             # NOTE: if autoplay is active and spotify was restarted, then this is executed twice in a row.
-            log.info(self.spotify.get_song())
+            log.debug("Spotify changed status or playback: "+self.spotify.get_song())
             self.check_spotify(metadata)
 
         self.bind_signals()
@@ -161,7 +162,7 @@ class Blockify(object):
             self.blocklist.__init__()
             current_timestamp = self.blocklist.timestamp
         if self.blocklist.timestamp != current_timestamp:
-            log.info("Blockfile changed. Reloading.")
+            log.warning("Blockfile changed. Reloading.")
             self.blocklist.__init__()
 
         if self.blocklist.find(song):
@@ -197,7 +198,7 @@ class Blockify(object):
             log.error("Not found in blocklist or block pattern too short.")
 
     def prepare_stop(self):
-        log.info("Exiting safely. Bye.")
+        log.warning("Exiting safely. Bye.")
         # Save the list only if it changed during runtime.
         if self.blocklist != self.orglist:
             self.blocklist.save()
@@ -211,19 +212,19 @@ class Blockify(object):
         sys.exit()
 
     def signal_stop_received(self, sig, hdl):
-        log.debug(f"{sig} received. Exiting safely.")
+        log.info(f"{sig} received. Exiting safely.")
         self.stop()
 
     def signal_block_received(self, sig, hdl):
-        log.debug(f"Signal {sig} received. Blocking current song: {self.current_song}")
+        log.info(f"Signal {sig} received. Blocking current song: {self.current_song}")
         self.block_current()
 
     def signal_unblock_received(self, sig, hdl):
-        log.debug(f"Signal {sig} received. Unblocking current song: {self.current_song}")
+        log.info(f"Signal {sig} received. Unblocking current song: {self.current_song}")
         self.unblock_current()
 
     def signal_toggle_received(self, sig, hdl):
-        log.debug(f"Signal {sig} received. Toggling blocked state.")
+        log.info(f"Signal {sig} received. Toggling blocked state.")
         self.toggle()
 
     def bind_signals(self):

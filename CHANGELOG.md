@@ -1,6 +1,7 @@
 # Version v4.0.1a0
 This is a work in progress for the next release.
 ## Enhancements
+- fixups in logging levels
 ## Bugs fixed
 ## Dependency updates
 
