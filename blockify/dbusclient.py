@@ -27,7 +27,7 @@ from blockify import util
 log = logging.getLogger("dbus")
 
 
-class DBusClient(object):
+class SpotifyDBusClient(object):
     """Wrapper for Spotify's DBus interface."""
 
     def __init__(self, bus=None):
@@ -36,13 +36,16 @@ class DBusClient(object):
         self.player_path = "org.mpris.MediaPlayer2.Player"
         # self.spotify_path = None
         self.spotify_path = "org.mpris.MediaPlayer2.spotify" # instead of bus.list_names() bus
+        self.session_bus = None
 
-        self.connect_to_spotify_dbus(bus)
+    def get_xdg_dbus(self):
+        return self.session_bus.get_object(
+            bus_name="org.freedesktop.DBus", object_path="/org/freedesktop/DBus"
+        )
 
-    def connect_to_spotify_dbus(self, bus):
+    def connect(self, bus=None):
         if not bus:
             bus = dbus.SessionBus(mainloop=DBusGMainLoop())
-            # bus = dbus.SessionBus()
         self.session_bus = bus
 
         # for name in bus.list_names():
@@ -103,7 +106,6 @@ class DBusClient(object):
         try:
             prop = self.properties.Get(self.player_path, key)
         except dbus.exceptions.DBusException as e:
-            self.connect_to_spotify_dbus(None)
             log.error("Failed to get DBus property: {}".format(e))
 
         return prop
@@ -113,7 +115,6 @@ class DBusClient(object):
         try:
             self.properties.Set(self.player_path, key, value)
         except Exception as e:
-            self.connect_to_spotify_dbus(None)
             log.warning("Cannot Set Property: {}".format(e))
 
     def playpause(self):
@@ -309,7 +310,7 @@ def main():
     """Entry point for the CLI DBus interface."""
     args = util.docopt(__doc__, version="0.4.1")
     util.init_logger(args["--log"], args["-v"], args["--quiet"])
-    dbus_client = DBusClient()
+    dbus_client = SpotifyDBusClient()
 
     args_mapper = {
         "setpos": wrap_action(dbus_client.set_position, args["<pos>"]),

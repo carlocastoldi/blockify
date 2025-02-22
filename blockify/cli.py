@@ -76,7 +76,8 @@ class Blockify(object):
 
     def connect_to_spotify(self):
         try:
-            return dbusclient.DBusClient() # blocking call
+            self.spotify = dbusclient.SpotifyDBusClient() # blocking call
+            self.spotify.connect()
         except KeyboardInterrupt as e:
             self.stop()
             # sys.exit(0)
@@ -84,6 +85,20 @@ class Blockify(object):
             log.error("Cannot connect to DBus. Exiting.\n ({}).".format(e))
             self.main_loop.quit()
             sys.exit(-1)
+        self.reconnect_if_closed(self.spotify.get_xdg_dbus())
+        return self.spotify
+
+    def reconnect_if_closed(self, xdg_bus):
+            def reconnect(bus_name, old_owner, new_owner):
+                log.info("Lost connection to spotify.")
+                self.spotify.connect()
+            xdg_bus.connect_to_signal(
+                signal_name="NameOwnerChanged",
+                handler_function=reconnect,
+                dbus_interface="org.freedesktop.DBus",
+                arg0="org.mpris.MediaPlayer2.spotify",
+                arg2="",  # new_owner
+            )
 
     def start(self):
         def on_spotify_update(metadata=None):
@@ -122,6 +137,7 @@ class Blockify(object):
 
         # if True:
         if self.current_song_is_ad(artist, title, self.spotify.get_spotify_url(metadata)):
+            # GLib.timeout_add(1500, self.mute)
             self.mute()
             self.found = True
             return
