@@ -1,6 +1,7 @@
 # Version v4.0.1a0
 This is a work in progress for the next release.
 ## Enhancements
+- now blockify can also be run as a [systemd service](blockify/data/blockify.service)
 - fixups in logging levels
 - fixed a bug were blockify would always exit with code 120
 ## Bugs fixed
