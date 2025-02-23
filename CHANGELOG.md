@@ -1,3 +1,9 @@
+# Version v4.1.1a0
+This is a work in progress for the next release.
+## Enhancements
+## Bugs fixed
+## Dependency updates
+
 # Version v4.1.0
 ## Enhancements
 - now blockify can also be run as a [systemd service](blockify/data/blockify.service)
