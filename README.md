@@ -18,6 +18,8 @@ Optional but highly recommended:
 
 On ArchLinux, you can install all dependencies as follows:  
 
+### ArchLinux
+On ArchLinux, `blockify` is available at the [AUR](https://aur.archlinux.org/packages/blockify-git).
 
 ### Manual (pip)
 
@@ -25,7 +27,7 @@ If there is no blockify package available on your distribution, you'll have to i
 
 Package names are for ArchLinux and will probably differ slightly between distributions.
 
-### Preparation (for ArchLinux)
+#### Preparation (for ArchLinux)
 
 Install blockify dependencies:
 ```bash
@@ -64,10 +66,10 @@ Blockify works as a CLI/daemon that you can start with `blockify` and stays in t
 ### Controls/Actions
 
 Blockify accepts several signals:
-* SIGINT(9)/SIGTERM(15): Exit cleanly.
-* SIGUSR2(10): Toggle mute state of current song.
-* SIGUSR1(12): Block current song, and adds it to `blocklist.txt`.
-* SIGRTMIN(34): Unblock current song, and removes it from `blocklist.txt`.
+* `SIGINT(9)`/`SIGTERM(15)`: Exit cleanly.
+* `SIGUSR2(10)`: Toggle mute state of current song.
+* `SIGUSR1(12)`: Block current song, and adds it to `blocklist.txt`.
+* `SIGRTMIN(34)`: Unblock current song, and removes it from `blocklist.txt`.
 
 To easily use these signals add the following function to your `.bashrc` or `.zshrc`.\
 Then send signals to blockify via `bb`, for example `bb b` adds the current song to the blocklist file and mutes Spotify.
@@ -114,7 +116,16 @@ bb() {
 }
 ```
 
-#### Configuration
+### systemd
+Blockify can also be run as an user service. Just install [`blockify.service`](blockify/data/blockify.service) in `$HOME/.config/systemd/user/` or, for system-wide availability, in `/etc/systemd/user/` [on ArchLinux](https://wiki.archlinux.org/title/Systemd/User).\
+You can enable the service at startup with:
+```
+systemctl --user enable --now blockify.service
+```
+
+As of now, the service will restart blockify automatically if it closed. This means that sending `SIGINT(9)`/`SIGTERM(15)` signals to stop it, won't be effective. Use `systemd --user stop blockiy`
+
+### Configuration
 
 Please see the provided [example_blockify.ini](https://github.com/serialoverflow/blockify/blob/master/blockify/data/example_blockify.ini) on what settings are available and their purpose.  
 Blockify automatically creates a configuration file at `$XDG_CONFIG_HOME/blockify/blockify.ini` if you don't have one already. It will also tell you via ERROR-logging messages, if you configuration file is faulty or incomplete, in which case the options that could be read will be merged with the default options you see in example_blockify.ini but you'll still want to fix your configuration file.  
