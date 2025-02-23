@@ -1,0 +1,11 @@
+[Unit]
+Description=Blockify Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/blockify -vv
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
