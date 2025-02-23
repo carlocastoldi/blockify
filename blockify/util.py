@@ -62,6 +62,7 @@ def init_logger(logpath: Path|str=None, loglevel=0, quiet=False):
         # Redirect all stderr to a logger so that we can capture it in the logfile.
         stderr_logger = logging.getLogger("stderr")
         stream_logger = StreamToLogger(stderr_logger, logging.ERROR)
+        sys.__stderr__ = sys.stderr
         sys.stderr = stream_logger
     if logpath:
         try:

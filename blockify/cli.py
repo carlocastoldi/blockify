@@ -46,9 +46,7 @@ class Blockify(object):
                 self.muter = AlsaMuter()
             except SystemCommandNotFound as e2:
                 log.error(f"No command '{e2.command}' found. Exiting.")
-                sys.exit(-1)
-
-        # DBusGMainLoop(set_as_default=True)
+                exit(1)
         self.main_loop = GLib.MainLoop()
         self.spotify = self.connect_to_spotify()
         log.info("Blockify initialized.")
@@ -209,7 +207,8 @@ class Blockify(object):
     def stop(self):
         self.prepare_stop()
         self.main_loop.quit()
-        sys.exit()
+        sys.stderr = sys.__stderr__ # otherwise exit code is always != 0. This is util.init_logger() fault
+        exit(0)
 
     def signal_stop_received(self, sig, hdl):
         log.info(f"{sig} received. Exiting safely.")

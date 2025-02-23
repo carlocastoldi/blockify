@@ -21,6 +21,7 @@ import time
 import dbus # from dbus-python package
 import dbus.types
 import dbus.exceptions
+from dbus.connection import SignalMatch
 from dbus.mainloop.glib import DBusGMainLoop
 
 from blockify import util
@@ -28,10 +29,12 @@ from blockify import util
 log = logging.getLogger("dbus")
 
 
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
 class SpotifyDBusClient(object):
     """Wrapper for Spotify's DBus interface."""
 
-    def __init__(self, bus=None):
+    def __init__(self):
         self.obj_path = "/org/mpris/MediaPlayer2"
         self.prop_path = "org.freedesktop.DBus.Properties"
         self.player_path = "org.mpris.MediaPlayer2.Player"
@@ -46,7 +49,7 @@ class SpotifyDBusClient(object):
 
     def connect(self, bus=None):
         if not bus:
-            bus = dbus.SessionBus(mainloop=DBusGMainLoop())
+            bus = dbus.SessionBus()
         self.session_bus = bus
 
         # for name in bus.list_names():
@@ -70,8 +73,8 @@ class SpotifyDBusClient(object):
                 time.sleep(2)
         log.info("Connection established!")
 
-    def on_property_change(self, fun):
-        self.session_bus.add_signal_receiver(
+    def on_property_change(self, fun) -> SignalMatch:
+        return self.session_bus.add_signal_receiver(
             handler_function=fun,
             signal_name="PropertiesChanged",
             dbus_interface="org.freedesktop.DBus.Properties",
@@ -79,7 +82,7 @@ class SpotifyDBusClient(object):
             path="/org/mpris/MediaPlayer2"
         )
 
-    def on_metadata_and_playback_change(self, fun):
+    def on_metadata_and_playback_change(self, fun) -> SignalMatch:
         def _playback_status_changed(
             interface_name: str,
             changed_properties: dict[str, str],
@@ -99,7 +102,7 @@ class SpotifyDBusClient(object):
                 metadata: dbus.types.Dictionary = changed_properties["Metadata"]
             # log.debug(f"metadata changed: interface={interface_name}, changed_properties={changed_properties}, invalidated_properties={invalidated_properties}")
             fun(metadata)
-        self.on_property_change(_playback_status_changed)
+        return self.on_property_change(_playback_status_changed)
 
     def get_property(self, key):
         """Gets the value from any available property."""
@@ -341,7 +344,7 @@ def main():
                 result = action(*action_args) if action_args else action()
                 if result:
                     print(result)
-                sys.exit()
+                exit(0)
 
     # Since get can have follow-up actions it has to be handled last and separately.
     if args.get("get", None):

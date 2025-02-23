@@ -2,6 +2,7 @@
 This is a work in progress for the next release.
 ## Enhancements
 - fixups in logging levels
+- fixed a bug were blockify would always exit with code 120
 ## Bugs fixed
 ## Dependency updates
 
