@@ -39,9 +39,9 @@ class Blockify(object):
 
         try:
             self.muter = PulseMuter()
-            log.debug("Mute method is pulse sink.")
+            log.info("Mute method is pulse sink.")
         except SystemCommandNotFound as e:
-            log.info(f"No command '{e.command}' found. Falling back to system mute via ALSA.") #/pulse
+            log.warning(f"No command '{e.command}' found. Falling back to system mute via ALSA.") #/pulse
             try:
                 self.muter = AlsaMuter()
             except SystemCommandNotFound as e2:
