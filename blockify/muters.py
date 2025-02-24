@@ -68,11 +68,17 @@ class PulseMuter():
         self.is_muted = any(sink.is_muted for sink in self.sinks)
 
     def mute(self):
+        if len(self.sinks) == 0:
+            log.error("No sink-inputs found for spotify. I can't mute.")
+            return
         for spotify_sink in self.sinks:
             spotify_sink.mute()
         self.is_muted = True
 
     def unmute(self):
+        if len(self.sinks) == 0:
+            log.error("No sink-inputs found for spotify. I can't unmute.")
+            return
         for spotify_sink in self.sinks:
             spotify_sink.unmute()
         self.is_muted = False
@@ -97,6 +103,9 @@ class PulseMuter():
 
     def _extract_spotify_sinks(self):
         pactl_out = subprocess.check_output(["pactl", "list", "sink-inputs"])
+        if len(pactl_out) == 0:
+            log.debug("Received no output from 'pactl'.")
+            return []
         output: str = pactl_out.decode("utf-8")
         sinks_status = [PulseSink(sink) for sink in output.split("\n\n")] # split("Sink Input #")
         spotify_sinks = [status for status in sinks_status if status.media_name.lower() == "spotify"]
