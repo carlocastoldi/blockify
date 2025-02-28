@@ -14,9 +14,9 @@ Mandatory:
   - PyGObject 3
 
 Optional but highly recommended:
-  - pactl / libpulse, for muting Spotify only
+  - pactl, for muting Spotify only (installed with `libpulse`, on ArchLinux; with `pulseaudio-utils` on Ubuntu)
 
-On ArchLinux, you can install all dependencies as follows:  
+On ArchLinux, you can install all dependencies as follows: 
 
 ### ArchLinux
 On ArchLinux, `blockify` is available at the [AUR](https://aur.archlinux.org/packages/blockify-git).
