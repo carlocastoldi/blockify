@@ -108,24 +108,24 @@ class PulseMuter():
             return []
         output: str = pactl_out.decode("utf-8")
         sinks_status = [PulseSink(sink) for sink in output.split("\n\n")] # split("Sink Input #")
-        spotify_sinks = [status for status in sinks_status if status.media_name.lower() == "spotify"]
+        spotify_sinks = [status for status in sinks_status if status.process_name.lower() == "spotify"]
         return spotify_sinks
 
 class PulseSink():
-    # Match sink id, muted values and media.name from output of "pactl list sink-inputs"
-    pactl_sink_pattern = re.compile(r"(?:Sink Input #|Corked|Mute|media\.name).*?(\w+|\".+\")")
+    # Match sink id, muted values and application.process.binary from output of "pactl list sink-inputs"
+    pactl_sink_pattern = re.compile(r"(?:Sink Input #|Corked|Mute|application\.process\.binary).*?(\w+|\".+\")")
     string_value_pattern = re.compile(r"\"(.*?)\"")
     def __init__(self, sink_out):
-        index, corked, muted, media_name = PulseSink.pactl_sink_pattern.findall(sink_out)
+        index, corked, muted, process_name = PulseSink.pactl_sink_pattern.findall(sink_out)
         # NOTE: previously we filtered out if index was false.
         #       dunno when it could be zero/empty string, tho...
         self.id = index # makes not sense to parse it to int
         self.is_playing = corked == "no" # not used
         self.is_muted = muted != "no"
-        self.media_name = PulseSink.string_value_pattern.findall(media_name)[0]
+        self.process_name = PulseSink.string_value_pattern.findall(process_name)[0]
 
     def __repr__(self):
-        return f"SinkInput#{self.id}(media='{self.media_name}', muted={self.is_muted}, playing={self.is_playing})"
+        return f"SinkInput#{self.id}(process='{self.process_name}', muted={self.is_muted}, playing={self.is_playing})"
 
     def mute(self):
         log.debug(f"Muting {self}")
