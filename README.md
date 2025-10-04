@@ -127,7 +127,7 @@ As of now, the service will restart blockify automatically if it closed. This me
 
 ### Configuration
 
-Please see the provided [example_blockify.ini](https://github.com/serialoverflow/blockify/blob/master/blockify/data/example_blockify.ini) on what settings are available and their purpose.  
+Please see the provided [example_blockify.ini](https://github.com/carlocastoldi/blockify/blob/master/blockify/data/example_blockify.ini) on what settings are available and their purpose.  
 Blockify automatically creates a configuration file at `$XDG_CONFIG_HOME/blockify/blockify.ini` if you don't have one already. It will also tell you via ERROR-logging messages, if you configuration file is faulty or incomplete, in which case the options that could be read will be merged with the default options you see in example_blockify.ini but you'll still want to fix your configuration file.  
 
 ## Troubleshooting
