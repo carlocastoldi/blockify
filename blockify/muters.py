@@ -64,7 +64,9 @@ class PulseMuter():
 
     def update(self):
         """Finds spotify's audio sinks."""
-        self.sinks = self._extract_spotify_sinks()
+        pactl_clients = self._extract_spotify_client()
+        # mute any spotify active client
+        self.sinks = [sink for client in pactl_clients for sink in client.sinks]
         self.is_muted = any(sink.is_muted for sink in self.sinks)
 
     def mute(self):
@@ -101,31 +103,30 @@ class PulseMuter():
 
     #     self.update_audio_channel_state(["amixer", "-qD", "pulse", "set"], state)
 
-    def _extract_spotify_sinks(self):
-        pactl_out = subprocess.check_output(["pactl", "list", "sink-inputs"])
+    def _extract_spotify_client(self):
+        pactl_out = subprocess.check_output(["pactl", "list", "clients"])
         if len(pactl_out) == 0:
-            log.debug("Received no output from 'pactl'.")
+            log.debug("Received no output from 'pactl list clients'.")
             return []
         output: str = pactl_out.decode("utf-8")
-        sinks_status = [PulseSink(sink) for sink in output.split("\n\n")] # split("Sink Input #")
-        spotify_sinks = [status for status in sinks_status if status.media_name.lower() == "spotify"]
-        return spotify_sinks
+        clients = [PulseClient(client) for client in output.split("\n\n")] # split("Client #")
+        spotify_clients = [client for client in clients if client.app.lower() == "spotify"]
+        return spotify_clients
 
 class PulseSink():
-    # Match sink id, muted values and media.name from output of "pactl list sink-inputs"
-    pactl_sink_pattern = re.compile(r"(?:Sink Input #|Corked|Mute|media\.name).*?(\w+|\".+\")")
-    string_value_pattern = re.compile(r"\"(.*?)\"")
+    # Match sink id and muted values from output of "pactl list sink-inputs"
+    pactl_sink_pattern = re.compile(r"(?:Sink Input #|Client|Corked|Mute).*?(\w+|\".+\")")
     def __init__(self, sink_out):
-        index, corked, muted, media_name = PulseSink.pactl_sink_pattern.findall(sink_out)
+        index, client, corked, muted = PulseSink.pactl_sink_pattern.findall(sink_out)
         # NOTE: previously we filtered out if index was false.
         #       dunno when it could be zero/empty string, tho...
-        self.id = index # makes not sense to parse it to int
-        self.is_playing = corked == "no" # not used
-        self.is_muted = muted != "no"
-        self.media_name = PulseSink.string_value_pattern.findall(media_name)[0]
+        self.id: str = index # makes not sense to parse it to int
+        self.client: str = client
+        self.is_playing: bool = corked == "no" # not used
+        self.is_muted: bool = muted != "no"
 
     def __repr__(self):
-        return f"SinkInput#{self.id}(media='{self.media_name}', muted={self.is_muted}, playing={self.is_playing})"
+        return f"SinkInput#{self.id}(client={self.client}, muted={self.is_muted}, playing={self.is_playing})"
 
     def mute(self):
         log.debug(f"Muting {self}")
@@ -140,3 +141,30 @@ class PulseSink():
     def toggle(self):
         # never used
         self.unmute() if self.is_muted else self.mute()
+
+class PulseClient():
+    # Match client id and application.process.binary from output of "pactl list clients"
+    pactl_client_pattern = re.compile(r"(?:Client #|application\.process\.binary).*?(\w+|\".+\")")
+    string_value_pattern = re.compile(r"\"(.*?)\"")
+    def __init__(self, client_out):
+        index, application = PulseClient.pactl_client_pattern.findall(client_out)
+        self.id: str = index
+        self.app: str = PulseClient.string_value_pattern.findall(application)[0]
+
+    def __repr__(self):
+        return f"PulseClient#{self.id}(app={self.app})"
+
+    @property
+    def sinks(self) -> list[PulseSink]:
+        sinks_status = _extract_pactl_sinks()
+        client_sinks = [status for status in sinks_status if status.client == self.id]
+        return client_sinks
+
+def _extract_pactl_sinks():
+    pactl_out = subprocess.check_output(["pactl", "list", "sink-inputs"])
+    if len(pactl_out) == 0:
+        log.debug("Received no output from 'pactl list sink-inputs'.")
+        return []
+    output: str = pactl_out.decode("utf-8")
+    sinks_status = [PulseSink(sink) for sink in output.split("\n\n")] # split("Sink Input #")
+    return sinks_status
