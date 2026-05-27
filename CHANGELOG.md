@@ -1,3 +1,9 @@
+# Version v4.2.1a0
+This is a work in progress for the next release.
+## Enhancements
+## Bugs fixed
+## Dependency updates
+
 # Version v4.2.0
 ## Enhancements
  - blockify now relies on pulseaudio client information, as well as their sink-inputs, to detect the relevant audio channel to mute
