@@ -21,22 +21,28 @@ On ArchLinux, you can install all dependencies as follows:
 ### ArchLinux
 On ArchLinux, `blockify` is available at the [AUR](https://aur.archlinux.org/packages/blockify-git).
 
-### Manual (pip)
+### Manual
 
-If there is no blockify package available on your distribution, you'll have to install it directly via one of pythons many installation tools.  
-
-Package names are for ArchLinux and will probably differ slightly between distributions.
-
-#### Preparation (for ArchLinux)
-
-Install blockify dependencies:
+#### Install dependencies
+ArchLinux:
 ```bash
-pacman -Syu python3-pip pulse-native-provider alsa-utils python-dbus python-gobject python-docopt
+pacman -Syu alsa-utils libpulse
 ```
 
-Install blockify:
+Ubuntu / Debian:
 ```bash
-sudo pip3 install git+https://github.com/carlocastoldi/blockify
+apt install alsa-utils pulseaudio-utils
+```
+
+Fedora:
+```bash
+dnf install alsa-utils pulseaudio-utils
+```
+
+#### Install blockify
+Use any of python's many installation tools, for example with `pipx`:
+```bash
+pipx install git+https://github.com/carlocastoldi/blockify.git
 ```
 
 ## Usage
