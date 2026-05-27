@@ -65,6 +65,7 @@ class PulseMuter():
     def update(self):
         """Finds spotify's audio sinks."""
         pactl_clients = self._extract_spotify_client()
+        log.debug("Spotify clients found: ["+", ".join(str(c) for c in pactl_clients)+"]")
         # mute any spotify active client
         self.sinks = [sink for client in pactl_clients for sink in client.sinks]
         self.is_muted = any(sink.is_muted for sink in self.sinks)
