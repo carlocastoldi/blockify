@@ -1,15 +1,19 @@
-# Version v4.1.1a0
-This is a work in progress for the next release.
+# Version v4.2.0
 ## Enhancements
+ - blockify now relies on pulseaudio client information, as well as their sink-inputs, to detect the relevant audio channel to mute
+ - change logging levels and messages
 ## Bugs fixed
+ - improved error handling for when `pactl` does not have any relevant sink-input
 ## Dependency updates
+ - dbus-python: 1.3.2 → 1.4.0
+ - pygobject: 3.50.0 → 3.54.5
 
 # Version v4.1.0
 ## Enhancements
-- now blockify can also be run as a [systemd service](blockify/data/blockify.service)
-- fixups in logging levels
+ - now blockify can also be run as a [systemd service](blockify/data/blockify.service)
+ - fixups in logging levels
 ## Bugs fixed
-- fixed a bug were blockify would always exit with code 120
+ - fixed a bug were blockify would always exit with code 120
 
 # Version v4.0.0
 ## Enhancements
